@@ -20,7 +20,6 @@ from rich.prompt import Prompt
 
 from linkedin_connection_agent.tools.browser_tool import LinkedInBrowser
 from linkedin_connection_agent.tools.pdf_tool import extract_pdf_text
-from linkedin_connection_agent.tools.search_tool import BooleanSearchTool
 from linkedin_connection_agent.utils.llm_factory import LLMFactory
 from linkedin_connection_agent.utils.message_validator import MessageValidator
 from linkedin_connection_agent.utils.scheduler import ConnectionScheduler
@@ -54,7 +53,7 @@ class LinkedInConnectionCrew:
         )
         task = Task(
             description=TASKS_CFG["generate_boolean_search_task"]["description"].format(
-                icp_description=icp["description"],
+                target_profile_description=icp.get("target_profile_description", icp["description"]),
                 target_roles=json.dumps(icp["target_roles"]),
                 industries=json.dumps(icp["industries"]),
                 locations=json.dumps(icp["locations"]),
@@ -79,7 +78,9 @@ class LinkedInConnectionCrew:
         search_strings = self.generate_search_strings(icp_key)
         console.print(f"\n[bold cyan]Generated {len(search_strings)} search strings.[/bold cyan]")
         for i, s in enumerate(search_strings, 1):
-            console.print(f"  {i}. {s['query'][:80]}...")
+            segment = s.get("segment", "")
+            label = f"[dim]{segment}[/dim] " if segment else ""
+            console.print(f"  {i}. {label}{s['query'][:80]}...")
 
         new_count = 0
         with LinkedInBrowser(headless=False) as browser:

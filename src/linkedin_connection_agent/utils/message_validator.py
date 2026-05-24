@@ -13,9 +13,11 @@ _FORBIDDEN_JOB = [
     "looking for opportunities", "open to opportunities", "please refer",
     "need a job", "job seeker", "actively looking", "seeking a position",
     "i'm available", "notice period", "job search", "find me a role",
+    "keep me in mind", "next play",
 ]
 _FORBIDDEN_DESPERATION = [
     "desperately", "urgently", "kindly", "please help", "really need",
+    "would be honored", "please connect",
 ]
 _FORBIDDEN_RESUME = [
     "my resume", "my cv", "my background", "my experience includes",
@@ -25,7 +27,10 @@ _FORBIDDEN_RESUME = [
 _FORBIDDEN_CLAIMS = [
     "i'm a great", "i'm an expert", "i'm highly", "i am highly", "strong background",
 ]
-_FORBIDDEN_FLATTERY = ["amazing", "incredible", "great work", "fantastic profile", "brilliant"]
+_FORBIDDEN_FLATTERY = [
+    "amazing", "incredible", "great work", "fantastic profile", "brilliant",
+    "guru", "legend",
+]
 
 
 @dataclass
@@ -78,10 +83,10 @@ Return ONLY a JSON array of issue strings. Empty array [] means all rules pass.
 Message: "{message}"
 
 Rules:
-C. SPECIFIC_REFERENCE: Does it reference something specific to a particular person's profile or post? Generic observations that fit anyone = issue.
-D. PEER_TONE: Does it sound like a thoughtful peer, not a job seeker? Applicant framing = issue.
-E. CURIOSITY_TRIGGER: Would the recipient think "interesting perspective"? Transactional or needy = issue.
-H. ENGAGEMENT_HOOK: Does it end with a genuine question about the recipient? Statement ending = issue.
+C. SPECIFIC_REFERENCE: Does it reference something specific to this particular person's profile or post? Generic observations that fit anyone = issue.
+D. EXECUTIVE_TONE: Does it sound like an SVP/Director reaching out peer-to-peer to a CTO/VP? Junior candidate, recruiter, or salesperson framing = issue.
+E. CURIOSITY_TRIGGER: Would the recipient think "interesting perspective" rather than "this person wants something"? Transactional or needy = issue.
+H. ENGAGEMENT_HOOK: Does it end with a genuine question about the recipient's work or decisions? Statement ending = issue.
 
 Output format: ["RULE_NAME: description"] or []
 Example: ["D: sounds like a candidate — 'I would love to connect'"]

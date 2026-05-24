@@ -1,45 +1,77 @@
 generate_boolean_search_task:
   description: >
-    Generate 6-8 LinkedIn Boolean search strings optimised for finding ICP profiles.
+    Generate 6-8 LinkedIn Boolean search strings across THREE priority segments 
+    for Anindya Chakraborty's (SVP, Product Engineering, Nomura) executive 
+    network expansion.
 
-    ICP Definition:
-    {icp_description}
+    Target Network Profile:
+    {target_profile_description}
 
     Target roles: {target_roles}
     Industries: {industries}
     Locations: {locations}
     Keywords: {keywords}
 
+    SEGMENT BREAKDOWN FOR SEARCH STRINGS:
+    Distribute your 6-8 strings across these three segments:
+
+    SEGMENT 1 — PEER COMPETITORS (2 strings):
+    Same level leaders: SVP Engineering, Director of Engineering, Head of Platform,
+    Head of Cloud, Head of Infrastructure. 
+    Industries: Global Investment Banks, Fintech, Product Companies.
+    Goal: Surface lateral peers navigating similar architectural and team scale 
+    challenges for knowledge exchange and market awareness.
+    Example: What are peers at Goldman Sachs, Morgan Stanley, Razorpay, PhonePe 
+    building at the same level?
+
+    SEGMENT 2 — SENIOR LEADERS AHEAD ON CAREER PATH (3 strings):
+    Target: CTO, CIO, VP Engineering, EVP Technology, MD Technology.
+    Industries: Investment Banking, Fintech, Global Product Companies, Cloud Infra.
+    Goal: Find leaders who made the transition from Architect/Director to VP/CTO 
+    in regulated or high-scale environments. People 1-2 career steps ahead.
+    Prioritize: Active thought leaders, conference speakers, people who post on 
+    engineering leadership, platform modernization, or cloud at scale.
+
+    SEGMENT 3 — HIRING DECISION MAKERS (2-3 strings):
+    Target: VPs, CTOs, Engineering Directors, Senior Hiring Managers, Technical 
+    Talent Partners at target organizations who have influence over Director/VP/SVP 
+    Engineering hiring decisions.
+    Industries: Global Investment Banks, Tier-1 Fintech, Product-Led Tech Companies,
+    Series B+ Cloud/Infra Startups.
+    Goal: Build warm presence before opportunities arise. These are people who 
+    can refer, recommend, or directly open doors at the right time.
+
     LinkedIn Boolean search operators:
     - AND, OR, NOT (must be UPPERCASE)
-    - Quotes for exact phrases: "Platform Engineer"
+    - Quotes for exact phrases: "Platform Engineering"
     - Parentheses for grouping
     - title: operator for job title filtering
 
     Requirements for each search string:
-    1. Target seniority level explicitly (Director, VP, Head of, Senior, Principal)
-    2. Include at least one industry or domain keyword
-    3. Include at least one technology keyword
-    4. Keep each string under 200 characters (LinkedIn search limit)
-    5. Vary the approach across strings (title-focused, skill-focused, company-type-focused)
+    1. Clearly label each string with its SEGMENT (1, 2, or 3)
+    2. Target seniority level explicitly per segment definition
+    3. Include industry context (Banking, Fintech, Product, Infra, Startup)
+    4. Include at least one technology/domain keyword (Cloud, AWS, Platform, Data)
+    5. Keep each string under 200 characters (LinkedIn search limit)
 
-    Output 6-8 strings with a one-line rationale for each.
+    Output 6-8 strings with segment label and one-line rationale for each.
 
   expected_output: >
-    A JSON array of search strings with rationale:
+    A JSON array of search strings with segment and rationale:
     [
       {
-        "query": "(\"Head of Engineering\" OR \"VP of Engineering\") AND (\"AWS\" OR \"GCP\") AND (\"fintech\" OR \"banking\")",
-        "rationale": "Targets senior engineering leadership in financial services with cloud expertise"
+        "segment": "SEGMENT 2 — Senior Leader",
+        "query": "(title:\"CTO\" OR title:\"VP Engineering\") AND (\"AWS\" OR \"Platform\") AND (\"Fintech\" OR \"Banking\")",
+        "rationale": "Targets C-suite tech leaders in financial services with platform/cloud expertise — 1-2 steps ahead on career path"
       }
     ]
-    (6-8 entries total, valid JSON array only)
+    (6-8 entries total covering all 3 segments, valid JSON array only)
 
 analyze_profile_task:
   description: >
     Analyse the following LinkedIn profile data and extract the top 3 conversation
     hooks — specific, non-obvious signals from the profile that could anchor a
-    personalized connection message.
+    personalized, peer-to-peer executive connection message.
 
     Profile data:
     {profile_data}
@@ -50,17 +82,18 @@ analyze_profile_task:
     - Something anyone could find in 5 seconds
 
     A "hook" IS:
-    - A specific project, technology choice, or architectural decision they mention
-    - A career transition that signals intellectual curiosity or risk-taking
-    - A certification or achievement that reveals a recent area of focus
-    - A company stage (startup to enterprise, regulated industry context)
-    - A specific problem domain they've worked on (e.g. "reduced ML inference latency 40%")
+    - A specific enterprise scale challenge or platform modernization they led
+    - A shared career trajectory (e.g., rising from Architect to VP in a regulated industry)
+    - Moving from legacy banking to high-growth fintech (or vice versa)
+    - Building specific engineering cultures or managing large-scale teams
+    - A specific problem domain they have solved (e.g., "migrated 1000+ databases to AWS")
+    - A technology decision that reveals their systems thinking and architectural philosophy
 
-    Rank the 3 hooks by their potential to create a peer-level conversation.
+    Rank the 3 hooks by their potential to spark a meaningful leadership conversation.
 
   expected_output: >
     ## Profile: {profile_name}
-    ## Top 3 Conversation Hooks (ranked by outreach potential)
+    ## Top 3 Executive Conversation Hooks
     1. [HOOK_NAME]: [specific detail] — [why this creates a peer conversation]
     2. [HOOK_NAME]: [specific detail] — [why this creates a peer conversation]
     3. [HOOK_NAME]: [specific detail] — [why this creates a peer conversation]
@@ -75,13 +108,13 @@ analyze_posts_task:
     {recent_posts}
 
     Look for:
-    1. A specific technical observation or opinion they stated
-    2. A tension or challenge they surfaced (something they said "is harder than people think")
-    3. A prediction or contrarian take they made
+    1. An architectural observation, technology opinion, or strategy they stated
+    2. A leadership tension they surfaced (e.g., "managing tech debt vs product delivery")
+    3. A macro-level tech prediction they made
     4. A question they posed to their audience
 
-    Identify the most intellectually engaging element — something a thoughtful peer
-    engineer would genuinely want to continue the conversation about.
+    Identify the most intellectually engaging element — something a thoughtful SVP 
+    of Engineering would genuinely want to discuss with them.
 
     If no posts are available, return: NO_POSTS_AVAILABLE
 
@@ -89,7 +122,7 @@ analyze_posts_task:
     ## Best Post Hook
     Post reference: [brief description of which post]
     Key observation/tension: [specific quote or paraphrase from their post]
-    Conversation angle: [what a thoughtful peer would say in response]
+    Conversation angle: [what a fellow senior leader would say in response]
     Confidence: HIGH / MEDIUM (HIGH only if the post contains a genuinely interesting point)
 
 write_message_task:
@@ -103,21 +136,31 @@ write_message_task:
     POST HOOK:
     {post_hook}
 
-    Sender context (DO NOT include in message — use only to inform tone):
-    - Senior Platform/Cloud Engineer, banking/fintech background
-    - Positioning: thoughtful builder, intellectual peer
-    - Goal: genuine conversation, NOT a job ask
+    Sender context (DO NOT include explicitly — use ONLY to inform tone):
+    - Name: Anindya Chakraborty
+    - Role: SVP, Product Engineering Manager at Nomura (19+ yrs experience)
+    - Positioning: Fellow senior engineering leader, intellectual peer, platform builder
+    - Goal: Knowledge exchange and warm relationship building with leaders ahead of him
+    - Tone: Confident, calm, selective, domain-aware, intellectually curious
 
-    Message structure: Specific observation → Insight/tension → Curious question
+    MESSAGE ARCHITECTURE (strictly follow this structure):
+    Specific observation → Insight/tension → Curious question → Soft continuation
 
-    Rules:
-    - 300 characters maximum (count carefully)
-    - Reference something SPECIFIC from their profile or post
-    - Sound like a peer reaching out, not a candidate
-    - End with a genuine question about THEM
-    - No job-seeking language whatsoever
-    - No "I'm looking for...", "please refer", "I'm skilled in"
-    - No desperation signals, no flattery
+    WHAT TO DO:
+    - Reference something SPECIFIC to this person — their scale, a decision they made,
+      a technology choice or a post they wrote
+    - Sound like an SVP reaching out to a CTO or VP — peer to peer
+    - Make the message about THEIR work, not the sender's background
+    - End with a genuine question about their perspective or decision-making
+    - Imply capability through insight, not by claiming "I have X years of experience"
+
+    WHAT NEVER TO DO:
+    - No mention of looking for roles, opportunities, or referrals
+    - No listing of sender's skills, tech stack, or years of experience
+    - No flattery ("amazing profile", "incredible work")
+    - No desperation signals ("kindly", "please help", "urgently")
+    - No resume or background summary
+    - No generic opener that could apply to 100 other profiles
 
   expected_output: >
     The connection message as a single plain-text string.
@@ -135,19 +178,22 @@ validate_message_task:
     RULES:
     A. CHARACTER_LIMIT: Is the message 300 characters or fewer? Count exactly. Hard FAIL if over 300.
     B. NO_JOB_ASK: No job-seeking language — "looking for opportunities", "please refer",
-       "need a job", "seeking a position", "I'm available", "notice period".
+       "keep me in mind", "seeking a position", "next play", "notice period".
     C. SPECIFIC_REFERENCE: Does the message reference something specific to this particular
-       person's profile or post? Generic observations that apply to anyone = FAIL.
-    D. PEER_TONE: Does the message sound like a thoughtful peer reaching out to an intellectual
-       equal? If it sounds like a candidate or job seeker, FAIL.
-    E. CURIOSITY_TRIGGER: Does the message create genuine intellectual curiosity in the
-       recipient? Would they think "interesting perspective"? If not, FAIL.
-    F. NO_DESPERATION: No desperate language — "desperately", "urgently", "kindly",
-       "please help". Also no excessive praise ("amazing", "incredible", "great work").
-    G. NO_RESUME_SIGNAL: No mention of sender's skills, expertise, resume, CV, or
-       achievements. The message should be entirely about the RECIPIENT.
-    H. ENGAGEMENT_HOOK: Does the message end with a genuine question about the recipient
-       or their work? A statement ending = FAIL.
+       person's profile or post? Generic observations ("great profile") = FAIL.
+       A PASS requires a reference that could ONLY apply to this one person.
+    D. EXECUTIVE_TONE: Does the message sound like an SVP/Director reaching out to a CTO/VP? 
+       If it sounds like a junior candidate, a recruiter, or a salesperson, FAIL.
+    E. CURIOSITY_TRIGGER: Does the message make the recipient think "interesting perspective"
+       rather than "this person wants something"? If the intellectual curiosity is absent, FAIL.
+    F. NO_DESPERATION: No desperate or pleading language — "kindly", "please connect", 
+       "would be honored", "desperately", "urgently". No excessive hollow praise 
+       ("amazing", "incredible", "guru", "legend").
+    G. NO_RESUME_SIGNAL: No mention of sender's tech stack, resume, years of experience, 
+       or skills list. The message must focus entirely on the RECIPIENT's work, decisions, 
+       or perspective. FAIL if the sender's background is mentioned.
+    H. ENGAGEMENT_HOOK: Does the message end with a genuine question about the recipient's 
+       work, decisions, or perspective? A statement ending = FAIL.
 
     Return ONLY:
     VERDICT: PASS
