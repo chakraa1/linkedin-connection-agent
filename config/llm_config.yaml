@@ -1,0 +1,20 @@
+providers:
+  anthropic:
+    api_key_env: ANTHROPIC_API_KEY
+    models:
+      - claude-opus-4-7
+      - claude-sonnet-4-6
+      - claude-haiku-4-5-20251001
+  openai:
+    api_key_env: OPENAI_API_KEY
+    models:
+      - gpt-4o
+      - gpt-4-turbo
+
+agent_llm_mapping:
+  boolean_search_agent: anthropic/claude-sonnet-4-6
+  profile_analyzer_agent: anthropic/claude-sonnet-4-6
+  post_analyzer_agent: anthropic/claude-haiku-4-5-20251001
+  message_writer_agent: anthropic/claude-sonnet-4-6
+  message_validator_agent: anthropic/claude-haiku-4-5-20251001
+  connection_agent: anthropic/claude-haiku-4-5-20251001

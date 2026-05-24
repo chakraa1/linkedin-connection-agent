@@ -1,0 +1,32 @@
+# Environment & credentials
+.env
+.env.local
+outputs/linkedin_session.json
+outputs/linkedin_tokens.json
+
+# Database
+outputs/scheduler.db
+
+# PDF profiles (potentially sensitive PII)
+outputs/profiles/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,177 @@
+generate_boolean_search_task:
+  description: >
+    Generate 6-8 LinkedIn Boolean search strings optimised for finding ICP profiles.
+
+    ICP Definition:
+    {icp_description}
+
+    Target roles: {target_roles}
+    Industries: {industries}
+    Locations: {locations}
+    Keywords: {keywords}
+
+    LinkedIn Boolean search operators:
+    - AND, OR, NOT (must be UPPERCASE)
+    - Quotes for exact phrases: "Platform Engineer"
+    - Parentheses for grouping
+    - title: operator for job title filtering
+
+    Requirements for each search string:
+    1. Target seniority level explicitly (Director, VP, Head of, Senior, Principal)
+    2. Include at least one industry or domain keyword
+    3. Include at least one technology keyword
+    4. Keep each string under 200 characters (LinkedIn search limit)
+    5. Vary the approach across strings (title-focused, skill-focused, company-type-focused)
+
+    Output 6-8 strings with a one-line rationale for each.
+
+  expected_output: >
+    A JSON array of search strings with rationale:
+    [
+      {
+        "query": "(\"Head of Engineering\" OR \"VP of Engineering\") AND (\"AWS\" OR \"GCP\") AND (\"fintech\" OR \"banking\")",
+        "rationale": "Targets senior engineering leadership in financial services with cloud expertise"
+      }
+    ]
+    (6-8 entries total, valid JSON array only)
+
+analyze_profile_task:
+  description: >
+    Analyse the following LinkedIn profile data and extract the top 3 conversation
+    hooks — specific, non-obvious signals from the profile that could anchor a
+    personalized connection message.
+
+    Profile data:
+    {profile_data}
+
+    A "hook" is NOT:
+    - Their job title or current company
+    - A generic compliment ("impressive career")
+    - Something anyone could find in 5 seconds
+
+    A "hook" IS:
+    - A specific project, technology choice, or architectural decision they mention
+    - A career transition that signals intellectual curiosity or risk-taking
+    - A certification or achievement that reveals a recent area of focus
+    - A company stage (startup to enterprise, regulated industry context)
+    - A specific problem domain they've worked on (e.g. "reduced ML inference latency 40%")
+
+    Rank the 3 hooks by their potential to create a peer-level conversation.
+
+  expected_output: >
+    ## Profile: {profile_name}
+    ## Top 3 Conversation Hooks (ranked by outreach potential)
+    1. [HOOK_NAME]: [specific detail] — [why this creates a peer conversation]
+    2. [HOOK_NAME]: [specific detail] — [why this creates a peer conversation]
+    3. [HOOK_NAME]: [specific detail] — [why this creates a peer conversation]
+    ## Recommended Hook: [1/2/3] — one-line justification
+
+analyze_posts_task:
+  description: >
+    Analyse the following recent LinkedIn posts from the target profile and identify
+    the single best conversation entry point for a personalized connection message.
+
+    Recent posts:
+    {recent_posts}
+
+    Look for:
+    1. A specific technical observation or opinion they stated
+    2. A tension or challenge they surfaced (something they said "is harder than people think")
+    3. A prediction or contrarian take they made
+    4. A question they posed to their audience
+
+    Identify the most intellectually engaging element — something a thoughtful peer
+    engineer would genuinely want to continue the conversation about.
+
+    If no posts are available, return: NO_POSTS_AVAILABLE
+
+  expected_output: >
+    ## Best Post Hook
+    Post reference: [brief description of which post]
+    Key observation/tension: [specific quote or paraphrase from their post]
+    Conversation angle: [what a thoughtful peer would say in response]
+    Confidence: HIGH / MEDIUM (HIGH only if the post contains a genuinely interesting point)
+
+write_message_task:
+  description: >
+    Write a LinkedIn connection request message for the following target profile.
+    The message MUST be 300 characters or fewer. Count carefully.
+
+    PROFILE HOOKS:
+    {profile_hooks}
+
+    POST HOOK:
+    {post_hook}
+
+    Sender context (DO NOT include in message — use only to inform tone):
+    - Senior Platform/Cloud Engineer, banking/fintech background
+    - Positioning: thoughtful builder, intellectual peer
+    - Goal: genuine conversation, NOT a job ask
+
+    Message structure: Specific observation → Insight/tension → Curious question
+
+    Rules:
+    - 300 characters maximum (count carefully)
+    - Reference something SPECIFIC from their profile or post
+    - Sound like a peer reaching out, not a candidate
+    - End with a genuine question about THEM
+    - No job-seeking language whatsoever
+    - No "I'm looking for...", "please refer", "I'm skilled in"
+    - No desperation signals, no flattery
+
+  expected_output: >
+    The connection message as a single plain-text string.
+    Final line must be: Character count: [N]
+    No explanations, no quotes — just the message and the count.
+
+validate_message_task:
+  description: >
+    Validate the following LinkedIn connection message against 8 quality rules.
+    A single violation is a FAIL. Do not skip any rule.
+
+    Message:
+    {message}
+
+    RULES:
+    A. CHARACTER_LIMIT: Is the message 300 characters or fewer? Count exactly. Hard FAIL if over 300.
+    B. NO_JOB_ASK: No job-seeking language — "looking for opportunities", "please refer",
+       "need a job", "seeking a position", "I'm available", "notice period".
+    C. SPECIFIC_REFERENCE: Does the message reference something specific to this particular
+       person's profile or post? Generic observations that apply to anyone = FAIL.
+    D. PEER_TONE: Does the message sound like a thoughtful peer reaching out to an intellectual
+       equal? If it sounds like a candidate or job seeker, FAIL.
+    E. CURIOSITY_TRIGGER: Does the message create genuine intellectual curiosity in the
+       recipient? Would they think "interesting perspective"? If not, FAIL.
+    F. NO_DESPERATION: No desperate language — "desperately", "urgently", "kindly",
+       "please help". Also no excessive praise ("amazing", "incredible", "great work").
+    G. NO_RESUME_SIGNAL: No mention of sender's skills, expertise, resume, CV, or
+       achievements. The message should be entirely about the RECIPIENT.
+    H. ENGAGEMENT_HOOK: Does the message end with a genuine question about the recipient
+       or their work? A statement ending = FAIL.
+
+    Return ONLY:
+    VERDICT: PASS
+    or
+    VERDICT: FAIL
+    ISSUES:
+    - RULE_NAME: exact quote of problem or description of violation
+
+  expected_output: >
+    VERDICT: PASS or FAIL. If FAIL, one bullet per violated rule with the rule name
+    and specific problem. No narrative, no suggestions, no praise.
+
+confirm_send_task:
+  description: >
+    The following connection request has been approved by the human reviewer
+    and sent via browser automation.
+
+    Profile: {profile_name}
+    Profile URL: {profile_url}
+    Message sent: {message}
+    Send result: {send_result}
+
+    Provide a brief audit log entry confirming the action.
+
+  expected_output: >
+    A single-line audit confirmation in this format:
+    CONNECTION_SENT | {profile_name} | {profile_url} | {timestamp} | Status: {status}

@@ -1,0 +1,47 @@
+icp1:
+  name: "Peer Competitors & Senior Hiring Leaders"
+  description: >
+    Senior engineers, engineering managers, directors, VPs, and CTOs in cloud and
+    platform engineering, fintech, and banking who hold hiring authority or regularly
+    refer opportunities to their network.
+  target_roles:
+    - "Head of Engineering"
+    - "VP of Engineering"
+    - "Director of Engineering"
+    - "Senior Engineering Manager"
+    - "Engineering Manager"
+    - "Principal Engineer"
+    - "Staff Engineer"
+    - "Head of Cloud Engineering"
+    - "Head of Platform Engineering"
+    - "Head of Infrastructure"
+    - "CTO"
+    - "VP of Platform Engineering"
+    - "VP of Infrastructure"
+    - "Director of Cloud"
+    - "Senior Solutions Architect"
+  industries:
+    - "Financial Services"
+    - "Banking"
+    - "Fintech"
+    - "Technology"
+    - "Cloud Computing"
+  locations:
+    - "India"
+    - "United Kingdom"
+    - "Singapore"
+    - "United States"
+  keywords:
+    - "AWS"
+    - "Azure"
+    - "GCP"
+    - "Kubernetes"
+    - "platform engineering"
+    - "cloud infrastructure"
+    - "DevOps"
+    - "FinOps"
+    - "microservices"
+    - "Terraform"
+  connection_degree: "2nd"
+  max_results_per_search: 25
+  daily_connection_limit: 20

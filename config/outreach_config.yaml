@@ -1,0 +1,61 @@
+constraints:
+  max_characters: 300
+  target_acceptance_rate: ">25%"
+
+forbidden_phrases:
+  job_seeking:
+    - "looking for opportunities"
+    - "open to opportunities"
+    - "please refer me"
+    - "need a job"
+    - "job seeker"
+    - "actively looking"
+    - "seeking a position"
+    - "i'm available"
+    - "notice period"
+    - "job search"
+    - "find me a role"
+  desperation:
+    - "desperately"
+    - "urgently"
+    - "kindly"
+    - "please help"
+    - "really need"
+  resume_signals:
+    - "my resume"
+    - "my cv"
+    - "my background"
+    - "my experience includes"
+    - "i'm skilled in"
+    - "skilled in"
+    - "proficient in"
+    - "i'm passionate about"
+    - "years of experience"
+  achievement_claims:
+    - "i'm a great"
+    - "i'm an expert"
+    - "i'm highly skilled"
+    - "strong background"
+  flattery:
+    - "amazing"
+    - "incredible"
+    - "great work"
+    - "fantastic profile"
+    - "brilliant"
+
+required_elements:
+  specific_observation: true
+  curiosity_question: true
+  peer_tone: true
+
+message_structure:
+  pattern: "Specific observation → Insight/tension → Curious question"
+  examples:
+    - "Saw your team's work on multi-tenant DB migration. The operational runbook problem seems harder long-term than the schema work itself. How are you handling rollback confidence at scale?"
+    - "Your post on AIOps observability surfaced something I've been wrestling with — Prometheus at 10k+ metrics starts feeling like a smell, not a solution. Is eBPF the direction you're leaning?"
+
+sender_profile:
+  name: "Anindya Chakraborty"
+  linkedin_url: "https://www.linkedin.com/in/chakraa1/"
+  persona: "Senior Platform/Cloud Engineer, banking and fintech background"
+  positioning: "Thoughtful builder, not applicant"
