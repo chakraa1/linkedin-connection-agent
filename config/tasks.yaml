@@ -47,12 +47,19 @@ generate_boolean_search_task:
     - Parentheses for grouping
     - title: operator for job title filtering
 
+    MANDATORY QUERY FORMAT — follow this 3-group AND structure exactly:
+    (title:"Role1" OR title:"Role2" OR title:"Role3") AND ("keyword1" OR "keyword2" OR "keyword3") AND ("industry1" OR "industry2" OR "industry3")
+
+    WORKING EXAMPLE (copy this structure):
+    (title:"CTO" OR title:"VP of Engineering" OR title:"Head of Engineering") AND ("platform engineering" OR "FinOps" OR "Kubernetes") AND ("Series B" OR "Series C" OR "Startup" OR "Fintech")
+
     Requirements for each search string:
-    1. Clearly label each string with its SEGMENT (1, 2, or 3)
-    2. Target seniority level explicitly per segment definition
-    3. Include industry context (Banking, Fintech, Product, Infra, Startup)
-    4. Include at least one technology/domain keyword (Cloud, AWS, Platform, Data)
-    5. Keep each string under 200 characters (LinkedIn search limit)
+    1. Exactly 3 AND-joined groups: (titles) AND (domain keywords) AND (industry/context)
+    2. Maximum 3 title: options per query — keep titles short and high-signal
+    3. Maximum 3-4 options per keyword/industry group
+    4. HARD LIMIT: each complete query must be under 180 characters
+    5. Do NOT chain more than 3 groups — LinkedIn returns 0 results for overly complex queries
+    6. Do NOT mix title: and plain keywords in the same group
 
     Output 6-8 strings with segment label and one-line rationale for each.
 
@@ -61,7 +68,7 @@ generate_boolean_search_task:
     [
       {
         "segment": "SEGMENT 2 — Senior Leader",
-        "query": "(title:\"CTO\" OR title:\"VP Engineering\") AND (\"AWS\" OR \"Platform\") AND (\"Fintech\" OR \"Banking\")",
+        "query": "(title:\"CTO\" OR title:\"VP of Engineering\" OR title:\"Head of Engineering\") AND (\"platform engineering\" OR \"FinOps\" OR \"Kubernetes\") AND (\"Fintech\" OR \"Banking\" OR \"Startup\")",
         "rationale": "Targets C-suite tech leaders in financial services with platform/cloud expertise — 1-2 steps ahead on career path"
       }
     ]
@@ -69,30 +76,60 @@ generate_boolean_search_task:
 
 analyze_profile_task:
   description: >
-    Analyse the following LinkedIn profile data and extract the top 3 conversation
-    hooks — specific, non-obvious signals from the profile that could anchor a
-    personalized, peer-to-peer executive connection message.
+    Analyse the following LinkedIn profile data in TWO STAGES.
 
     Profile data:
     {profile_data}
 
+    STAGE 2.1 — RELEVANCE SCORING
+    Score this profile HIGH, MEDIUM, or LOW for ICP seniority fit:
+
+    HIGH: Title is VP, SVP, EVP, ED (Executive Director), MD (Managing Director),
+          CTO, CIO, CXO, Head of Engineering / Platform / Infrastructure / Technology /
+          IT / Cloud, Director of Engineering, or equivalent C-suite tech leadership.
+          AND experience signals 15+ years in technology OR managed 50+ engineers OR
+          built org-wide platforms / large-scale distributed systems.
+
+    MEDIUM: Title is Director (non-engineering), Principal Engineer, Senior Engineering
+            Manager, or similar with 8–15 years of technology leadership experience.
+
+    LOW: Everything else — individual contributors, junior titles, non-technology roles,
+         or insufficient information to assess seniority.
+
+    STAGE 2.2 — TOP 3 EXECUTIVE CONVERSATION HOOKS
+    Extract the top 3 conversation hooks from their About section and Experience.
+    A hook is a specific, non-obvious signal that could anchor a peer-to-peer
+    executive connection message.
+
     A "hook" is NOT:
-    - Their job title or current company
-    - A generic compliment ("impressive career")
-    - Something anyone could find in 5 seconds
+    - Their job title or company name
+    - A generic compliment ("impressive career", "great background")
+    - A skill keyword from endorsements (Java, AWS, Kubernetes)
+    - A tenure duration without context ("8 years at Goldman" is not a hook)
+    - A connection count or follower metric
 
     A "hook" IS:
-    - A specific enterprise scale challenge or platform modernization they led
-    - A shared career trajectory (e.g., rising from Architect to VP in a regulated industry)
-    - Moving from legacy banking to high-growth fintech (or vice versa)
-    - Building specific engineering cultures or managing large-scale teams
-    - A specific problem domain they have solved (e.g., "migrated 1000+ databases to AWS")
-    - A technology decision that reveals their systems thinking and architectural philosophy
+    - A specific platform modernization, migration, or architecture decision they led
+    - A shared career trajectory (e.g., Architect → VP in a regulated industry)
+    - A regulatory or compliance engineering challenge they navigated
+      (e.g., built PCI-DSS compliant infrastructure, SOX audit automation)
+    - A team scaling inflection point they managed
+      (e.g., grew engineering from 20 to 150, built offshore delivery models)
+    - A build-vs-buy decision at scale
+      (e.g., replaced vendor ITSM with in-house platform, built internal dev portal)
+    - A market transition they rode
+      (e.g., on-prem trading systems → cloud-native, GenAI adoption in regulated env)
+    - A public stance on engineering leadership
+      (e.g., conference speaker, published on tech debt or platform teams)
+    - A cross-functional leadership signal
+      (e.g., led product and engineering jointly, reported to both CTO and COO)
 
     Rank the 3 hooks by their potential to spark a meaningful leadership conversation.
 
   expected_output: >
     ## Profile: {profile_name}
+    ## RELEVANCE: [HIGH / MEDIUM / LOW]
+    ## Rationale: [one line — specific reason for this seniority rating]
     ## Top 3 Executive Conversation Hooks
     1. [HOOK_NAME]: [specific detail] — [why this creates a peer conversation]
     2. [HOOK_NAME]: [specific detail] — [why this creates a peer conversation]
@@ -130,11 +167,8 @@ write_message_task:
     Write a LinkedIn connection request message for the following target profile.
     The message MUST be 300 characters or fewer. Count carefully.
 
-    PROFILE HOOKS:
+    PROFILE ANALYSIS (specific hooks extracted from their headline, about and experience):
     {profile_hooks}
-
-    POST HOOK:
-    {post_hook}
 
     Sender context (DO NOT include explicitly — use ONLY to inform tone):
     - Name: Anindya Chakraborty

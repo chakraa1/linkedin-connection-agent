@@ -58,6 +58,7 @@ class ConnectionScheduler:
         profile_name: str,
         profile_headline: str = "",
         icp_key: str = "icp1",
+        profile_data: str = "",
     ) -> str:
         with Session(self._engine) as session:
             existing = session.query(ConnectionProfile).filter_by(profile_url=profile_url).first()
@@ -71,6 +72,7 @@ class ConnectionScheduler:
                     profile_name=profile_name,
                     profile_headline=profile_headline,
                     icp_key=icp_key,
+                    profile_data=profile_data,
                     status="discovered",
                 )
             )
@@ -133,6 +135,23 @@ class ConnectionScheduler:
                 record.error_message = error
                 session.commit()
 
+    def list_all_records(self) -> list:
+        with Session(self._engine) as session:
+            records = (
+                session.query(ConnectionProfile)
+                .order_by(ConnectionProfile.created_at)
+                .all()
+            )
+            session.expunge_all()
+            return records
+
+    def get_by_url(self, profile_url: str):
+        with Session(self._engine) as session:
+            record = session.query(ConnectionProfile).filter_by(profile_url=profile_url).first()
+            if record:
+                session.expunge(record)
+            return record
+
     def list_by_status(self, status: str) -> list:
         with Session(self._engine) as session:
             records = (
@@ -150,6 +169,11 @@ class ConnectionScheduler:
             if record:
                 session.expunge(record)
             return record
+
+    def reset(self) -> None:
+        """Drop and recreate all tables — complete pipeline reset."""
+        Base.metadata.drop_all(self._engine)
+        Base.metadata.create_all(self._engine)
 
     def list_all(self) -> None:
         with Session(self._engine) as session:

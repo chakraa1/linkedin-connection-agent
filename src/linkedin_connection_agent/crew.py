@@ -10,6 +10,9 @@ Phase 6: Human review                    (interactive Rich CLI)
 Phase 7: Send connection requests        (Playwright browser automation)
 """
 import json
+import os
+import uuid
+from datetime import date as _date
 from pathlib import Path
 
 import yaml
@@ -19,7 +22,7 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 
 from linkedin_connection_agent.tools.browser_tool import LinkedInBrowser
-from linkedin_connection_agent.tools.pdf_tool import extract_pdf_text
+# from linkedin_connection_agent.tools.pdf_tool import extract_pdf_text  # PDF disabled
 from linkedin_connection_agent.utils.llm_factory import LLMFactory
 from linkedin_connection_agent.utils.message_validator import MessageValidator
 from linkedin_connection_agent.utils.scheduler import ConnectionScheduler
@@ -31,12 +34,64 @@ AGENTS_CFG = yaml.safe_load((_BASE / "config/agents.yaml").read_text(encoding="u
 TASKS_CFG = yaml.safe_load((_BASE / "config/tasks.yaml").read_text(encoding="utf-8"))
 ICP_CFG = yaml.safe_load((_BASE / "config/icp_config.yaml").read_text(encoding="utf-8"))
 
+_RUN_ID_FILE = Path("outputs/.current_run_id")
+
+# Keywords that indicate a senior title — used to filter search results
+_SENIOR_TITLE_KEYWORDS = [
+    "vp ",          # VP / SVP / EVP all contain "vp " as substring when padded
+    "vice president",
+    "managing director",
+    "md ",          # "MD | Goldman" or "MD Technology"
+    "executive director",
+    "cto", "cio", "coo", "ceo", "cxo",
+    "chief technology", "chief information", "chief operating",
+    "chief executive", "chief digital", "chief data",
+    "head of engineering", "head of platform", "head of infrastructure",
+    "head of technology", "head of it", "head of cloud",
+    "director of engineering", "director of technology",
+    "director of platform", "director of infrastructure",
+    "engineering director", "technology director",
+]
+
+
+def _is_senior(headline: str) -> bool:
+    h = " " + headline.lower() + " "
+    return any(kw in h for kw in _SENIOR_TITLE_KEYWORDS)
+
+
+def _parse_relevance(hooks_text: str) -> str:
+    """Extract HIGH / MEDIUM / LOW from analyzed hooks output."""
+    if not hooks_text:
+        return ""
+    for line in hooks_text.split("\n"):
+        if "RELEVANCE:" in line.upper():
+            upper = line.upper()
+            if "HIGH" in upper:
+                return "HIGH"
+            if "MEDIUM" in upper:
+                return "MEDIUM"
+            if "LOW" in upper:
+                return "LOW"
+    return ""
+
+
+def _load_or_create_run_id(new_run: bool = False) -> str:
+    """Persist run ID in outputs/.current_run_id so all pipeline steps share one Excel."""
+    if new_run or not _RUN_ID_FILE.exists():
+        run_id = uuid.uuid4().hex[:8]
+        _RUN_ID_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _RUN_ID_FILE.write_text(run_id)
+        return run_id
+    content = _RUN_ID_FILE.read_text().strip()
+    return content if content else _load_or_create_run_id(new_run=True)
+
 
 class LinkedInConnectionCrew:
     def __init__(self):
         self._llm = LLMFactory()
         self._scheduler = ConnectionScheduler()
         self._validator = MessageValidator()
+        self._run_id = _load_or_create_run_id(new_run=False)
 
     # ------------------------------------------------------------------ #
     # Phase 1: Boolean search string generation
@@ -75,6 +130,9 @@ class LinkedInConnectionCrew:
     # ------------------------------------------------------------------ #
 
     def discover_profiles(self, icp_key: str = "icp1", max_per_query: int = 10) -> int:
+        # Each discover run starts a fresh Excel with a new run ID
+        self._run_id = _load_or_create_run_id(new_run=True)
+
         search_strings = self.generate_search_strings(icp_key)
         console.print(f"\n[bold cyan]Generated {len(search_strings)} search strings.[/bold cyan]")
         for i, s in enumerate(search_strings, 1):
@@ -82,28 +140,100 @@ class LinkedInConnectionCrew:
             label = f"[dim]{segment}[/dim] " if segment else ""
             console.print(f"  {i}. {label}{s['query'][:80]}...")
 
-        new_count = 0
+        skipped_junior = 0
+        skipped_existing = 0
+        pending_scrape: list[dict] = []   # new senior profiles not yet in DB
+        seen_urls: set[str] = set()       # cross-query dedup within this run
+
         with LinkedInBrowser(headless=False) as browser:
             if not browser.is_logged_in():
-                console.print("[yellow]Not logged in. Run: python main.py auth[/yellow]")
-                return 0
+                console.print("[yellow]Session expired — logging in with .env credentials...[/yellow]")
+                if not browser.login(os.environ["LINKEDIN_EMAIL"], os.environ["LINKEDIN_PASSWORD"]):
+                    console.print("[red]Login failed. Check LINKEDIN_EMAIL / LINKEDIN_PASSWORD in .env[/red]")
+                    return 0
+
+            # ── Phase 1: collect search results ──────────────────────────
+            session_refreshed = False
             for search in search_strings:
                 console.print(f"\n[dim]Searching: {search['query'][:60]}...[/dim]")
-                profiles = browser.search_people(search["query"], max_results=max_per_query)
+                try:
+                    profiles = browser.search_people(search["query"], max_results=max_per_query)
+                except RuntimeError as exc:
+                    if "session expired" in str(exc) and not session_refreshed:
+                        console.print("[yellow]Session expired mid-run — re-logging in...[/yellow]")
+                        if not browser.login(os.environ["LINKEDIN_EMAIL"], os.environ["LINKEDIN_PASSWORD"]):
+                            console.print("[red]Re-login failed.[/red]")
+                            break
+                        session_refreshed = True
+                        profiles = browser.search_people(search["query"], max_results=max_per_query)
+                    else:
+                        console.print(f"[red]Search failed: {exc}[/red]")
+                        continue
+
                 for p in profiles:
+                    headline = p.get("headline", "") or ""
+
+                    # Filter: only senior titles
+                    if not _is_senior(headline):
+                        skipped_junior += 1
+                        continue
+
+                    url = p["url"]
+                    if url in seen_urls:
+                        continue
+                    seen_urls.add(url)
+
+                    # Gap C fix: skip ANY profile already in the DB (any status —
+                    # discovered, analyzed, pending, approved, sent, rejected, failed)
+                    if self._scheduler.get_by_url(url):
+                        skipped_existing += 1
+                        continue
+
+                    pending_scrape.append(p)
+
+            # ── Phase 2: scrape About + Experience for each new profile ───
+            # This populates the Excel columns immediately after discovery.
+            if pending_scrape:
+                console.print(
+                    f"\n[dim]Scraping About + Experience for {len(pending_scrape)} new profiles...[/dim]"
+                )
+                for p in pending_scrape:
+                    console.print(f"  Scraping: [cyan]{p['name']}[/cyan]")
+                    try:
+                        scraped = browser.scrape_profile(p["url"])
+                    except Exception as exc:
+                        console.print(f"    [yellow]Scrape failed: {exc} — saving basic info only.[/yellow]")
+                        scraped = {}
+
+                    profile_data = json.dumps({
+                        "name": scraped.get("name") or p["name"],
+                        "headline": scraped.get("headline") or p.get("headline", ""),
+                        "url": p["url"],
+                        "about": scraped.get("about", ""),
+                        "experience": scraped.get("experience", []),
+                    }, indent=2)
+
                     self._scheduler.save_discovered(
                         profile_url=p["url"],
                         profile_name=p["name"],
-                        profile_headline=p["headline"],
+                        profile_headline=p.get("headline", ""),
                         icp_key=icp_key,
+                        profile_data=profile_data,
                     )
-                    new_count += 1
 
-        console.print(f"\n[bold green]Discovered {new_count} profiles.[/bold green]")
+        new_count = len(pending_scrape)
+        console.print(
+            f"\n[bold green]Discovered {new_count} senior profiles.[/bold green]"
+            f"  [dim](skipped {skipped_junior} junior, {skipped_existing} already in pipeline)[/dim]"
+        )
+
+        # Export to Excel immediately — About + Experience now populated
+        path = self.export_to_excel()
+        console.print(f"[bold cyan]Discovery snapshot → {path}[/bold cyan]")
         return new_count
 
     # ------------------------------------------------------------------ #
-    # Phase 3: Profile + post analysis
+    # Phase 3: Profile analysis (PDF-first, no posts)
     # ------------------------------------------------------------------ #
 
     def analyze_profiles(self, limit: int = 10) -> int:
@@ -112,6 +242,45 @@ class LinkedInConnectionCrew:
             console.print("[yellow]No discovered profiles to analyze.[/yellow]")
             return 0
 
+        # Phase A — browser: scrape posts only (About+Experience already in DB from discovery)
+        scraped_data: list[tuple] = []   # (record, profile_data_str, posts)
+        console.print("[dim]Phase 1/2: Scraping recent posts...[/dim]")
+        with LinkedInBrowser(headless=False) as browser:
+            if not browser.is_logged_in():
+                console.print("[yellow]Session expired — logging in...[/yellow]")
+                if not browser.login(os.environ["LINKEDIN_EMAIL"], os.environ["LINKEDIN_PASSWORD"]):
+                    console.print("[red]Login failed.[/red]")
+                    return 0
+
+            for record in discovered:
+                console.print(f"  Posts: [cyan]{record.profile_name}[/cyan]", end="")
+
+                # Reuse About+Experience from discovery; only re-scrape if missing
+                profile_data_str = record.profile_data or ""
+                if not profile_data_str:
+                    console.print(" [dim](re-scraping profile — not cached)[/dim]")
+                    try:
+                        scraped = browser.scrape_profile(record.profile_url)
+                    except Exception:
+                        scraped = {}
+                    profile_data_str = json.dumps({
+                        "name": scraped.get("name") or record.profile_name,
+                        "headline": scraped.get("headline") or record.profile_headline,
+                        "url": record.profile_url,
+                        "about": scraped.get("about", ""),
+                        "experience": scraped.get("experience", []),
+                    }, indent=2)
+                else:
+                    console.print(" [dim](profile cached)[/dim]")
+
+                # Stage 2.2 feed: scrape recent posts
+                posts = browser.scrape_recent_posts(record.profile_url)
+                post_label = f"[green]{len(posts)} posts[/green]" if posts else "[dim]no posts[/dim]"
+                console.print(f"    → {post_label}")
+                scraped_data.append((record, profile_data_str, posts))
+
+        # Phase B — CrewAI analysis (browser fully closed, no event loop conflict)
+        console.print("\n[dim]Phase 2/2: Running AI analysis...[/dim]")
         profile_analyzer = Agent(
             role=AGENTS_CFG["profile_analyzer_agent"]["role"],
             goal=AGENTS_CFG["profile_analyzer_agent"]["goal"],
@@ -128,55 +297,76 @@ class LinkedInConnectionCrew:
         )
 
         processed = 0
-        with LinkedInBrowser(headless=False) as browser:
-            for record in discovered:
-                console.print(f"\n  Analyzing: [cyan]{record.profile_name}[/cyan]")
-                profile_data = browser.scrape_profile(record.profile_url)
-                recent_posts = browser.get_recent_posts(record.profile_url, max_posts=3)
+        for record, profile_data_str, posts in scraped_data:
+            console.print(f"  Analyzing: [cyan]{record.profile_name}[/cyan]")
 
-                pdf_path = str(Path("outputs/profiles/pdfs") / f"{record.id}.pdf")
-                browser.download_profile_pdf(record.profile_url, pdf_path)
-                pdf_text = extract_pdf_text(pdf_path) if Path(pdf_path).exists() else ""
-                if pdf_text:
-                    profile_data["pdf_extract"] = pdf_text[:2000]
+            # Stage 2.1 — Relevance scoring + profile hooks (About + Experience)
+            profile_task = Task(
+                description=TASKS_CFG["analyze_profile_task"]["description"].format(
+                    profile_data=profile_data_str,
+                    profile_name=record.profile_name,
+                ),
+                expected_output=TASKS_CFG["analyze_profile_task"]["expected_output"].format(
+                    profile_name=record.profile_name,
+                ),
+                agent=profile_analyzer,
+            )
+            Crew(
+                agents=[profile_analyzer],
+                tasks=[profile_task],
+                process=Process.sequential,
+                verbose=False,
+            ).kickoff()
 
-                profile_data_str = json.dumps(profile_data, indent=2)
-                recent_posts_str = json.dumps(recent_posts, indent=2)
+            analyzed_hooks = (
+                str(profile_task.output)
+                if hasattr(profile_task, "output") and profile_task.output
+                else profile_data_str
+            )
 
-                profile_task = Task(
-                    description=TASKS_CFG["analyze_profile_task"]["description"].format(
-                        profile_data=profile_data_str,
-                        profile_name=record.profile_name,
-                    ),
-                    expected_output=TASKS_CFG["analyze_profile_task"]["expected_output"].format(
-                        profile_name=record.profile_name,
-                    ),
-                    agent=profile_analyzer,
-                )
+            # Stage 2.2 — Post hook (only when active posts exist)
+            if posts:
+                post_text = "\n\n---\n\n".join(posts)
                 post_task = Task(
                     description=TASKS_CFG["analyze_posts_task"]["description"].format(
-                        recent_posts=recent_posts_str,
+                        recent_posts=post_text,
                     ),
                     expected_output=TASKS_CFG["analyze_posts_task"]["expected_output"],
                     agent=post_analyzer,
-                    context=[profile_task],
                 )
                 Crew(
-                    agents=[profile_analyzer, post_analyzer],
-                    tasks=[profile_task, post_task],
+                    agents=[post_analyzer],
+                    tasks=[post_task],
                     process=Process.sequential,
                     verbose=False,
                 ).kickoff()
-
-                self._scheduler.save_analyzed(
-                    profile_id=record.id,
-                    profile_data=profile_data_str,
-                    recent_posts=recent_posts_str,
-                    pdf_path=pdf_path if Path(pdf_path).exists() else "",
+                post_hook_out = (
+                    str(post_task.output)
+                    if hasattr(post_task, "output") and post_task.output
+                    else ""
                 )
-                processed += 1
+                if post_hook_out and "NO_POSTS_AVAILABLE" not in post_hook_out:
+                    analyzed_hooks = analyzed_hooks + "\n\n## Post Hook\n" + post_hook_out
+                    console.print("    [green]Post hook appended.[/green]")
+            else:
+                console.print("    [dim]Stage 2.2 skipped — no posts.[/dim]")
+
+            self._scheduler.save_analyzed(
+                profile_id=record.id,
+                profile_data=profile_data_str,
+                recent_posts=analyzed_hooks,
+                pdf_path="",
+            )
+            relevance = _parse_relevance(analyzed_hooks)
+            rel_color = {"HIGH": "green", "MEDIUM": "yellow", "LOW": "red"}.get(relevance, "dim")
+            console.print(f"    → [{rel_color}]RELEVANCE: {relevance or 'unknown'}[/{rel_color}]")
+            processed += 1
 
         console.print(f"\n[bold green]Analyzed {processed} profiles.[/bold green]")
+
+        # Re-export Excel: hooks, relevance, and auto-shortlist updated
+        path = self.export_to_excel()
+        console.print(f"[bold cyan]Analysis snapshot → {path}[/bold cyan]")
         return processed
 
     # ------------------------------------------------------------------ #
@@ -210,8 +400,8 @@ class LinkedInConnectionCrew:
 
             write_task = Task(
                 description=TASKS_CFG["write_message_task"]["description"].format(
-                    profile_hooks=(record.profile_data or "")[:1500],
-                    post_hook=(record.recent_posts or "")[:500],
+                    profile_hooks=(record.recent_posts or record.profile_data or "")[:2000],
+                    post_hook="",
                 ),
                 expected_output=TASKS_CFG["write_message_task"]["expected_output"],
                 agent=message_writer,
@@ -251,7 +441,188 @@ class LinkedInConnectionCrew:
             generated += 1
 
         console.print(f"\n[bold green]Generated messages for {generated} profiles.[/bold green]")
+        path = self.export_to_excel()
+        console.print(f"[bold cyan]Review file saved → {path}[/bold cyan]")
         return generated
+
+    # ------------------------------------------------------------------ #
+    # Excel export / import
+    # ------------------------------------------------------------------ #
+
+    def export_to_excel(self, out_path: str | None = None) -> str:
+        """Export all profiles + messages to Excel for human review.
+
+        Path: outputs/YYYY-MM-DD/profiles_review_<run_id>.xlsx
+        Columns (12): Name, Headline, URL, About, Experience, Relevance, Hooks,
+                      Generated Message, Char Count, Status, Shortlisted, Notes
+        """
+        import openpyxl
+        from openpyxl.styles import Alignment, Font, PatternFill
+        from openpyxl.utils import get_column_letter
+
+        if out_path is None:
+            today = _date.today().strftime("%Y-%m-%d")
+            out_path = f"outputs/{today}/profiles_review_{self._run_id}.xlsx"
+
+        STATUS_COLORS = {
+            "discovered":     "D9EAD3",
+            "analyzed":       "C9DAF8",
+            "message_drafted":"FFF2CC",
+            "approved":       "B6D7A8",
+            "sent":           "6AA84F",
+            "rejected":       "F4CCCC",
+            "failed":         "EA9999",
+        }
+        HEADER_FILL = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+        HEADER_FONT = Font(bold=True, color="FFFFFF", size=11)
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Outreach Review"
+
+        headers = [
+            "Name", "Headline", "LinkedIn URL",
+            "About", "Experience",
+            "Relevance", "Hooks",
+            "Generated Message", "Char Count",
+            "Status", "Shortlisted (Yes / No)", "Notes",
+        ]
+        col_widths = [28, 40, 48, 55, 55, 12, 60, 65, 10, 16, 22, 35]
+
+        for col, (header, width) in enumerate(zip(headers, col_widths), 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.font = HEADER_FONT
+            cell.fill = HEADER_FILL
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            ws.column_dimensions[get_column_letter(col)].width = width
+
+        ws.row_dimensions[1].height = 28
+
+        for row_idx, profile in enumerate(self._scheduler.list_all_records(), 2):
+            about = ""
+            experience = ""
+            try:
+                pd = json.loads(profile.profile_data or "{}")
+                about = pd.get("about", "") or ""
+                exp_list = pd.get("experience", []) or []
+                experience = "\n\n".join(e.strip() for e in exp_list if e.strip())
+            except Exception:
+                pass
+
+            relevance = _parse_relevance(profile.recent_posts or "")
+            hooks_text = (profile.recent_posts or "")[:3000]
+
+            # Auto-shortlist: HIGH relevance profiles not yet rejected
+            if profile.status in ("approved", "sent"):
+                shortlisted = "Yes"
+            elif profile.status == "rejected":
+                shortlisted = "No"
+            elif relevance == "HIGH" and profile.status not in ("rejected",):
+                shortlisted = "Yes"
+            else:
+                shortlisted = ""
+
+            row_data = [
+                profile.profile_name or "",
+                profile.profile_headline or "",
+                profile.profile_url or "",
+                about[:2000],
+                experience[:2000],
+                relevance,
+                hooks_text,
+                profile.message or "",
+                len(profile.message or ""),
+                profile.status or "",
+                shortlisted,
+                "",
+            ]
+            row_fill = PatternFill(
+                start_color=STATUS_COLORS.get(profile.status, "FFFFFF"),
+                end_color=STATUS_COLORS.get(profile.status, "FFFFFF"),
+                fill_type="solid",
+            )
+            WRAP_COLS = {4, 5, 7, 8}  # About, Experience, Hooks, Generated Message
+            for col, value in enumerate(row_data, 1):
+                cell = ws.cell(row=row_idx, column=col, value=value)
+                cell.fill = row_fill
+                cell.alignment = Alignment(vertical="top", wrap_text=(col in WRAP_COLS))
+
+        ws.freeze_panes = "A2"
+
+        out = Path(out_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        wb.save(str(out))
+        return str(out)
+
+    def import_excel_review(self, path: str | None = None) -> tuple[int, int]:
+        """
+        Read profiles_review Excel (auto-detects most recent if path not specified).
+        Shortlisted = 'Yes'  → approve (and update message if edited).
+        Shortlisted = 'No'   → reject.
+        Blank                → leave as-is.
+        Returns (approved_count, rejected_count).
+        """
+        import openpyxl
+
+        xlsx_path: Path
+        if path:
+            xlsx_path = Path(path)
+        else:
+            candidates = sorted(
+                Path("outputs").rglob("profiles_review_*.xlsx"),
+                key=lambda f: f.stat().st_mtime,
+                reverse=True,
+            )
+            if candidates:
+                xlsx_path = candidates[0]
+            else:
+                xlsx_path = Path("outputs/profiles_review.xlsx")
+
+        if not xlsx_path.exists():
+            raise FileNotFoundError(
+                f"No review Excel found at {xlsx_path}. Run: python main.py export"
+            )
+
+        console.print(f"[dim]Importing from: {xlsx_path}[/dim]")
+        wb = openpyxl.load_workbook(str(xlsx_path))
+        ws = wb.active
+
+        approved = rejected = 0
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if not any(row):
+                continue
+            n = len(row)
+            if n >= 12:
+                # New 12-column format
+                name, headline, url, about, experience, relevance, hooks, message, char_count, status, shortlisted, notes = row[:12]
+            elif n >= 10:
+                # Legacy 10-column format
+                name, headline, url, about, experience, message, char_count, status, shortlisted, notes = row[:10]
+            else:
+                continue
+
+            if not url:
+                continue
+            profile = self._scheduler.get_by_url(str(url).strip())
+            if not profile:
+                continue
+            if profile.status == "sent":
+                continue  # never touch already-sent profiles
+
+            val = str(shortlisted or "").strip().lower()
+            if val == "yes":
+                if message and str(message).strip() != (profile.message or "").strip():
+                    self._scheduler.save_message(profile.id, str(message).strip()[:300])
+                self._scheduler.approve_message(profile.id)
+                approved += 1
+            elif val == "no":
+                self._scheduler.reject_message(profile.id, feedback=str(notes or ""))
+                rejected += 1
+
+        # Refresh Excel so Status and Shortlisted columns reflect import decisions
+        path = self.export_to_excel()
+        console.print(f"[bold cyan]Excel updated → {path}[/bold cyan]")
+        return approved, rejected
 
     def _extract_message(self, output: str) -> str:
         lines = [
@@ -299,15 +670,13 @@ class LinkedInConnectionCrew:
             ))
 
             if record.recent_posts:
-                try:
-                    posts = json.loads(record.recent_posts)
-                    if posts:
-                        console.print(Panel(
-                            (posts[0].get("text", "")[:300] + "..."),
-                            title="[dim]Most Recent Post (excerpt)[/dim]",
-                        ))
-                except Exception:
-                    pass
+                # Show first 400 chars of the hooks/analysis for context
+                hooks_preview = record.recent_posts[:400].strip()
+                if hooks_preview:
+                    console.print(Panel(
+                        hooks_preview + ("..." if len(record.recent_posts) > 400 else ""),
+                        title="[dim]Profile Hooks (excerpt)[/dim]",
+                    ))
 
             console.print(Panel(
                 f"[bold white]{record.message}[/bold white]\n\n"
@@ -342,6 +711,10 @@ class LinkedInConnectionCrew:
                 console.print("[dim]Skipped.[/dim]")
 
         console.print(f"\n[bold green]Approved {approved} messages.[/bold green]")
+
+        # Refresh Excel so Status and Shortlisted columns reflect review decisions
+        path = self.export_to_excel()
+        console.print(f"[bold cyan]Excel updated → {path}[/bold cyan]")
         return approved
 
     # ------------------------------------------------------------------ #
@@ -357,8 +730,10 @@ class LinkedInConnectionCrew:
         sent = 0
         with LinkedInBrowser(headless=False) as browser:
             if not browser.is_logged_in():
-                console.print("[yellow]Not logged in. Run: python main.py auth[/yellow]")
-                return 0
+                console.print("[yellow]Session expired — logging in with .env credentials...[/yellow]")
+                if not browser.login(os.environ["LINKEDIN_EMAIL"], os.environ["LINKEDIN_PASSWORD"]):
+                    console.print("[red]Login failed. Check LINKEDIN_EMAIL / LINKEDIN_PASSWORD in .env[/red]")
+                    return 0
             for record in approved:
                 console.print(f"\n  Sending to: [cyan]{record.profile_name}[/cyan]")
                 result = browser.send_connection_request(record.profile_url, record.message)
@@ -371,4 +746,8 @@ class LinkedInConnectionCrew:
                     console.print(f"  [red]Failed: {result.get('error')}[/red]")
 
         console.print(f"\n[bold green]Sent {sent} connection requests.[/bold green]")
+
+        # Refresh Excel so Status column reflects sent/failed outcomes
+        path = self.export_to_excel()
+        console.print(f"[bold cyan]Excel updated → {path}[/bold cyan]")
         return sent
