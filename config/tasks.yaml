@@ -1,7 +1,7 @@
 generate_boolean_search_task:
   description: >
-    Generate 6-8 LinkedIn Boolean search strings across THREE priority segments 
-    for Anindya Chakraborty's (SVP, Product Engineering, Nomura) executive 
+    Generate 6-8 LinkedIn Boolean search strings across THREE priority segments
+    for Anindya Chakraborty's (SVP, Product Engineering, Nomura) executive
     network expansion.
 
     Target Network Profile:
@@ -17,29 +17,22 @@ generate_boolean_search_task:
 
     SEGMENT 1 — PEER COMPETITORS (2 strings):
     Same level leaders: SVP Engineering, Director of Engineering, Head of Platform,
-    Head of Cloud, Head of Infrastructure. 
+    Head of Cloud, Head of Infrastructure.
     Industries: Global Investment Banks, Fintech, Product Companies.
-    Goal: Surface lateral peers navigating similar architectural and team scale 
+    Goal: Surface lateral peers navigating similar architectural and team scale
     challenges for knowledge exchange and market awareness.
-    Example: What are peers at Goldman Sachs, Morgan Stanley, Razorpay, PhonePe 
-    building at the same level?
 
     SEGMENT 2 — SENIOR LEADERS AHEAD ON CAREER PATH (3 strings):
     Target: CTO, CIO, VP Engineering, EVP Technology, MD Technology.
     Industries: Investment Banking, Fintech, Global Product Companies, Cloud Infra.
-    Goal: Find leaders who made the transition from Architect/Director to VP/CTO 
+    Goal: Find leaders who made the transition from Architect/Director to VP/CTO
     in regulated or high-scale environments. People 1-2 career steps ahead.
-    Prioritize: Active thought leaders, conference speakers, people who post on 
-    engineering leadership, platform modernization, or cloud at scale.
 
     SEGMENT 3 — HIRING DECISION MAKERS (2-3 strings):
-    Target: VPs, CTOs, Engineering Directors, Senior Hiring Managers, Technical 
-    Talent Partners at target organizations who have influence over Director/VP/SVP 
-    Engineering hiring decisions.
-    Industries: Global Investment Banks, Tier-1 Fintech, Product-Led Tech Companies,
-    Series B+ Cloud/Infra Startups.
-    Goal: Build warm presence before opportunities arise. These are people who 
-    can refer, recommend, or directly open doors at the right time.
+    Target: VPs, CTOs, Engineering Directors, Senior Hiring Managers at target
+    organizations who have influence over Director/VP/SVP Engineering hiring.
+    Industries: Global Investment Banks, Tier-1 Fintech, Product-Led Tech Companies.
+    Goal: Build warm presence before opportunities arise.
 
     LinkedIn Boolean search operators:
     - AND, OR, NOT (must be UPPERCASE)
@@ -47,21 +40,15 @@ generate_boolean_search_task:
     - Parentheses for grouping
     - title: operator for job title filtering
 
-    MANDATORY QUERY FORMAT — follow this 3-group AND structure exactly:
-    (title:"Role1" OR title:"Role2" OR title:"Role3") AND ("keyword1" OR "keyword2" OR "keyword3") AND ("industry1" OR "industry2" OR "industry3")
-
-    WORKING EXAMPLE (copy this structure):
-    (title:"CTO" OR title:"VP of Engineering" OR title:"Head of Engineering") AND ("platform engineering" OR "FinOps" OR "Kubernetes") AND ("Series B" OR "Series C" OR "Startup" OR "Fintech")
+    MANDATORY QUERY FORMAT:
+    (title:"Role1" OR title:"Role2" OR title:"Role3") AND ("keyword1" OR "keyword2") AND ("industry1" OR "industry2")
 
     Requirements for each search string:
     1. Exactly 3 AND-joined groups: (titles) AND (domain keywords) AND (industry/context)
-    2. Maximum 3 title: options per query — keep titles short and high-signal
+    2. Maximum 3 title: options per query
     3. Maximum 3-4 options per keyword/industry group
     4. HARD LIMIT: each complete query must be under 180 characters
-    5. Do NOT chain more than 3 groups — LinkedIn returns 0 results for overly complex queries
-    6. Do NOT mix title: and plain keywords in the same group
-
-    Output 6-8 strings with segment label and one-line rationale for each.
+    5. Do NOT chain more than 3 groups
 
   expected_output: >
     A JSON array of search strings with segment and rationale:
@@ -73,185 +60,3 @@ generate_boolean_search_task:
       }
     ]
     (6-8 entries total covering all 3 segments, valid JSON array only)
-
-analyze_profile_task:
-  description: >
-    Analyse the following LinkedIn profile data in TWO STAGES.
-
-    Profile data:
-    {profile_data}
-
-    STAGE 2.1 — RELEVANCE SCORING
-    Score this profile HIGH, MEDIUM, or LOW for ICP seniority fit:
-
-    HIGH: Title is VP, SVP, EVP, ED (Executive Director), MD (Managing Director),
-          CTO, CIO, CXO, Head of Engineering / Platform / Infrastructure / Technology /
-          IT / Cloud, Director of Engineering, or equivalent C-suite tech leadership.
-          AND experience signals 15+ years in technology OR managed 50+ engineers OR
-          built org-wide platforms / large-scale distributed systems.
-
-    MEDIUM: Title is Director (non-engineering), Principal Engineer, Senior Engineering
-            Manager, or similar with 8–15 years of technology leadership experience.
-
-    LOW: Everything else — individual contributors, junior titles, non-technology roles,
-         or insufficient information to assess seniority.
-
-    STAGE 2.2 — TOP 3 EXECUTIVE CONVERSATION HOOKS
-    Extract the top 3 conversation hooks from their About section and Experience.
-    A hook is a specific, non-obvious signal that could anchor a peer-to-peer
-    executive connection message.
-
-    A "hook" is NOT:
-    - Their job title or company name
-    - A generic compliment ("impressive career", "great background")
-    - A skill keyword from endorsements (Java, AWS, Kubernetes)
-    - A tenure duration without context ("8 years at Goldman" is not a hook)
-    - A connection count or follower metric
-
-    A "hook" IS:
-    - A specific platform modernization, migration, or architecture decision they led
-    - A shared career trajectory (e.g., Architect → VP in a regulated industry)
-    - A regulatory or compliance engineering challenge they navigated
-      (e.g., built PCI-DSS compliant infrastructure, SOX audit automation)
-    - A team scaling inflection point they managed
-      (e.g., grew engineering from 20 to 150, built offshore delivery models)
-    - A build-vs-buy decision at scale
-      (e.g., replaced vendor ITSM with in-house platform, built internal dev portal)
-    - A market transition they rode
-      (e.g., on-prem trading systems → cloud-native, GenAI adoption in regulated env)
-    - A public stance on engineering leadership
-      (e.g., conference speaker, published on tech debt or platform teams)
-    - A cross-functional leadership signal
-      (e.g., led product and engineering jointly, reported to both CTO and COO)
-
-    Rank the 3 hooks by their potential to spark a meaningful leadership conversation.
-
-  expected_output: >
-    ## Profile: {profile_name}
-    ## RELEVANCE: [HIGH / MEDIUM / LOW]
-    ## Rationale: [one line — specific reason for this seniority rating]
-    ## Top 3 Executive Conversation Hooks
-    1. [HOOK_NAME]: [specific detail] — [why this creates a peer conversation]
-    2. [HOOK_NAME]: [specific detail] — [why this creates a peer conversation]
-    3. [HOOK_NAME]: [specific detail] — [why this creates a peer conversation]
-    ## Recommended Hook: [1/2/3] — one-line justification
-
-analyze_posts_task:
-  description: >
-    Analyse the following recent LinkedIn posts from the target profile and identify
-    the single best conversation entry point for a personalized connection message.
-
-    Recent posts:
-    {recent_posts}
-
-    Look for:
-    1. An architectural observation, technology opinion, or strategy they stated
-    2. A leadership tension they surfaced (e.g., "managing tech debt vs product delivery")
-    3. A macro-level tech prediction they made
-    4. A question they posed to their audience
-
-    Identify the most intellectually engaging element — something a thoughtful SVP 
-    of Engineering would genuinely want to discuss with them.
-
-    If no posts are available, return: NO_POSTS_AVAILABLE
-
-  expected_output: >
-    ## Best Post Hook
-    Post reference: [brief description of which post]
-    Key observation/tension: [specific quote or paraphrase from their post]
-    Conversation angle: [what a fellow senior leader would say in response]
-    Confidence: HIGH / MEDIUM (HIGH only if the post contains a genuinely interesting point)
-
-write_message_task:
-  description: >
-    Write a LinkedIn connection request message for the following target profile.
-    The message MUST be 300 characters or fewer. Count carefully.
-
-    PROFILE ANALYSIS (specific hooks extracted from their headline, about and experience):
-    {profile_hooks}
-
-    Sender context (DO NOT include explicitly — use ONLY to inform tone):
-    - Name: Anindya Chakraborty
-    - Role: SVP, Product Engineering Manager at Nomura (19+ yrs experience)
-    - Positioning: Fellow senior engineering leader, intellectual peer, platform builder
-    - Goal: Knowledge exchange and warm relationship building with leaders ahead of him
-    - Tone: Confident, calm, selective, domain-aware, intellectually curious
-
-    MESSAGE ARCHITECTURE (strictly follow this structure):
-    Specific observation → Insight/tension → Curious question → Soft continuation
-
-    WHAT TO DO:
-    - Reference something SPECIFIC to this person — their scale, a decision they made,
-      a technology choice or a post they wrote
-    - Sound like an SVP reaching out to a CTO or VP — peer to peer
-    - Make the message about THEIR work, not the sender's background
-    - End with a genuine question about their perspective or decision-making
-    - Imply capability through insight, not by claiming "I have X years of experience"
-
-    WHAT NEVER TO DO:
-    - No mention of looking for roles, opportunities, or referrals
-    - No listing of sender's skills, tech stack, or years of experience
-    - No flattery ("amazing profile", "incredible work")
-    - No desperation signals ("kindly", "please help", "urgently")
-    - No resume or background summary
-    - No generic opener that could apply to 100 other profiles
-
-  expected_output: >
-    The connection message as a single plain-text string.
-    Final line must be: Character count: [N]
-    No explanations, no quotes — just the message and the count.
-
-validate_message_task:
-  description: >
-    Validate the following LinkedIn connection message against 8 quality rules.
-    A single violation is a FAIL. Do not skip any rule.
-
-    Message:
-    {message}
-
-    RULES:
-    A. CHARACTER_LIMIT: Is the message 300 characters or fewer? Count exactly. Hard FAIL if over 300.
-    B. NO_JOB_ASK: No job-seeking language — "looking for opportunities", "please refer",
-       "keep me in mind", "seeking a position", "next play", "notice period".
-    C. SPECIFIC_REFERENCE: Does the message reference something specific to this particular
-       person's profile or post? Generic observations ("great profile") = FAIL.
-       A PASS requires a reference that could ONLY apply to this one person.
-    D. EXECUTIVE_TONE: Does the message sound like an SVP/Director reaching out to a CTO/VP? 
-       If it sounds like a junior candidate, a recruiter, or a salesperson, FAIL.
-    E. CURIOSITY_TRIGGER: Does the message make the recipient think "interesting perspective"
-       rather than "this person wants something"? If the intellectual curiosity is absent, FAIL.
-    F. NO_DESPERATION: No desperate or pleading language — "kindly", "please connect", 
-       "would be honored", "desperately", "urgently". No excessive hollow praise 
-       ("amazing", "incredible", "guru", "legend").
-    G. NO_RESUME_SIGNAL: No mention of sender's tech stack, resume, years of experience, 
-       or skills list. The message must focus entirely on the RECIPIENT's work, decisions, 
-       or perspective. FAIL if the sender's background is mentioned.
-    H. ENGAGEMENT_HOOK: Does the message end with a genuine question about the recipient's 
-       work, decisions, or perspective? A statement ending = FAIL.
-
-    Return ONLY:
-    VERDICT: PASS
-    or
-    VERDICT: FAIL
-    ISSUES:
-    - RULE_NAME: exact quote of problem or description of violation
-
-  expected_output: >
-    VERDICT: PASS or FAIL. If FAIL, one bullet per violated rule with the rule name
-    and specific problem. No narrative, no suggestions, no praise.
-
-confirm_send_task:
-  description: >
-    The following connection request has been approved by the human reviewer
-    and sent via browser automation.
-
-    Profile: {profile_name}
-    Profile URL: {profile_url}
-    Message sent: {message}
-    Send result: {send_result}
-
-    Provide a brief audit log entry confirming the action.
-
-  expected_output: >
-    A single-line audit confirmation in this format:
-    CONNECTION_SENT | {profile_name} | {profile_url} | {timestamp} | Status: {status}

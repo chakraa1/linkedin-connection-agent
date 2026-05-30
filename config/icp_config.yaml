@@ -34,9 +34,6 @@ icp1:
     - "Cloud Computing"
   locations:
     - "India"
-    - "United Kingdom"
-    - "Singapore"
-    - "United States"
   keywords:
     - "AWS"
     - "Azure"

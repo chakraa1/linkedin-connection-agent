@@ -1,14 +1,9 @@
 # Environment & credentials
 .env
 .env.local
-outputs/linkedin_session.json
-outputs/linkedin_tokens.json
 
-# Database
-outputs/scheduler.db
-
-# PDF profiles (potentially sensitive PII)
-outputs/profiles/
+# All outputs — contains scraped LinkedIn data, session cookies, DB, Excel files
+outputs/
 
 # Python
 __pycache__/

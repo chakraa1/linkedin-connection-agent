@@ -71,9 +71,10 @@ def auth():
 @cli.command("discover")
 @click.option("--icp", default="icp1", show_default=True, help="ICP key from icp_config.yaml")
 @click.option("--max-per-query", default=10, show_default=True, help="Max profiles per search string")
-def discover(icp, max_per_query):
-    """Search LinkedIn and discover ICP profiles."""
-    LinkedInConnectionCrew().discover_profiles(icp_key=icp, max_per_query=max_per_query)
+@click.option("--location", default=None, help="Override region (default: India). E.g. --location 'United Kingdom'")
+def discover(icp, max_per_query, location):
+    """Search LinkedIn and discover ICP profiles (default region: India)."""
+    LinkedInConnectionCrew().discover_profiles(icp_key=icp, max_per_query=max_per_query, location=location)
 
 
 @cli.command("analyze")
@@ -185,43 +186,131 @@ def import_review(path):
 @cli.command("run-pipeline")
 @click.option("--icp", default="icp1", show_default=True, help="ICP key from icp_config.yaml")
 @click.option("--discover-limit", default=15, show_default=True, help="Max profiles per search query")
-@click.option("--analyze-limit", default=20, show_default=True, help="Profiles to analyze")
 @click.option("--message-limit", default=20, show_default=True, help="Messages to generate")
-@click.option("--send/--no-send", default=False, show_default=True, help="Send approved requests after generation")
-def run_pipeline(icp, discover_limit, analyze_limit, message_limit, send):
-    """Full pipeline: discover → analyze → generate messages [→ send].
+@click.option("--location", default=None, help="Override region (default: India). E.g. --location 'United Kingdom'")
+@click.option("--send/--no-send", default=False, show_default=True, help="Send approved requests after Excel review (default: no-send)")
+def run_pipeline(icp, discover_limit, message_limit, location, send):
+    """Full pipeline: discover → generate messages → Excel review → import → [send].
 
     \b
-    Equivalent to running in sequence:
-      python main.py discover --icp icp1 --max-per-query 15
-      python main.py analyze  --limit 20
-      python main.py generate-messages --limit 20
-      [python main.py send  (only with --send flag)]
+    Steps:
+      Step 1  discover        — search LinkedIn, scrape profiles, filter by seniority
+      Step 2  generate-messages — write 250-300 word messages, validate rules A-I
+      Step 3  Excel review    — open Excel, set Shortlisted = Yes / No, save
+      Step 4  import-review   — sync decisions back to DB
+      [send   — only with --send flag]
     """
     crew = LinkedInConnectionCrew()
     console.print("[bold cyan]Starting LinkedIn connection pipeline...[/bold cyan]\n")
 
-    console.print("[bold]Step 1/3 — Discover[/bold]")
-    crew.discover_profiles(icp_key=icp, max_per_query=discover_limit)
+    # ── Step 1: Discover ──────────────────────────────────────────────────
+    console.print("[bold]Step 1/4 — Discover[/bold]")
+    crew.discover_profiles(icp_key=icp, max_per_query=discover_limit, location=location)
 
-    console.print("\n[bold]Step 2/3 — Analyze[/bold]")
-    crew.analyze_profiles(limit=analyze_limit)
-
-    console.print("\n[bold]Step 3/3 — Generate Messages[/bold]")
+    # ── Step 2: Generate Messages ─────────────────────────────────────────
+    console.print("\n[bold]Step 2/4 — Generate Messages[/bold]")
     crew.generate_messages(limit=message_limit)
 
+    # ── Step 3: Human Review (Excel) ──────────────────────────────────────
+    console.print("\n[bold]Step 3/4 — Human Review (Excel)[/bold]")
+    excel_path = crew.export_to_excel()
+    console.print(f"[bold green]Excel → {excel_path}[/bold green]")
+
+    try:
+        os.startfile(str(excel_path))
+        console.print("[dim]Excel opened automatically.[/dim]")
+    except Exception:
+        import subprocess
+        subprocess.Popen(["start", "", str(excel_path)], shell=True)
+
+    console.print(
+        "\n[dim]Instructions:[/dim]\n"
+        "  1. Set [bold]Shortlisted[/bold] = Yes / No for each profile\n"
+        "  2. Edit the message directly in the cell if needed\n"
+        "  3. Save and close the file\n"
+    )
+    click.pause("  Press any key once you have saved the Excel review...")
+
+    # ── Step 4: Import Review ─────────────────────────────────────────────
+    console.print("\n[bold]Step 4/4 — Import Review[/bold]")
+    try:
+        approved, rejected = crew.import_excel_review()
+        console.print(
+            f"[bold green]Imported:[/bold green] {approved} approved, {rejected} rejected."
+        )
+    except FileNotFoundError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return
+
+    # ── Optional: Send ────────────────────────────────────────────────────
     if send:
-        console.print(f"\n[bold yellow]--send flag active. Sending up to {message_limit} approved requests...[/bold yellow]")
-        if click.confirm("Proceed with sending?", default=True):
+        console.print(f"\n[bold yellow]--send flag active.[/bold yellow]")
+        if click.confirm(f"Send up to {message_limit} approved connection requests?", default=False):
             crew.send_connections(limit=message_limit)
         else:
-            console.print("[dim]Send aborted.[/dim]")
+            console.print("[dim]Send skipped.[/dim]")
     else:
         console.print(
-            "\n[dim]--no-send mode (default). Review the Excel, then run:[/dim]\n"
-            "  python main.py import-review\n"
+            "\n[dim]--no-send (default). To send approved requests:[/dim]\n"
             "  python main.py send"
         )
+
+
+@cli.command("create-search-config")
+@click.argument("excel_path")
+@click.option("--output", default="config/search_strings.yaml", show_default=True,
+              help="Destination YAML file")
+def create_search_config(excel_path, output):
+    """Convert a stage1 search-strings Excel to config/search_strings.yaml.
+
+    \b
+    EXCEL_PATH  Path to a stage1_search_strings_*.xlsx file.
+                Columns expected: #  |  Query  |  Rationale  |  Segment
+
+    Once the YAML exists, 'discover' loads it instead of calling the LLM,
+    keeping search behaviour consistent across runs.
+    """
+    import openpyxl, yaml as _yaml
+    from pathlib import Path as _Path
+
+    src = _Path(excel_path)
+    if not src.exists():
+        console.print(f"[red]File not found: {excel_path}[/red]")
+        return
+
+    wb = openpyxl.load_workbook(str(src))
+    ws = wb.active
+    entries = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        num, query, rationale, segment = (list(row) + [None] * 4)[:4]
+        if query and str(query).strip():
+            entries.append({
+                "segment":   str(segment or "").strip(),
+                "query":     str(query).strip(),
+                "rationale": str(rationale or "").strip(),
+            })
+
+    if not entries:
+        console.print("[red]No query rows found in the Excel.[/red]")
+        return
+
+    doc = {
+        "_source": str(src),
+        "_note": "Curated Boolean search strings. When this file exists, discover skips LLM generation.",
+        "search_strings": entries,
+    }
+    out = _Path(output)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        _yaml.dump(doc, allow_unicode=True, sort_keys=False, width=120, default_flow_style=False),
+        encoding="utf-8",
+    )
+    console.print(f"[bold green]Saved {len(entries)} queries → {output}[/bold green]")
+    by_seg: dict[str, int] = {}
+    for e in entries:
+        by_seg[e["segment"]] = by_seg.get(e["segment"], 0) + 1
+    for seg, n in by_seg.items():
+        console.print(f"  [dim]{seg}: {n}[/dim]")
 
 
 @cli.command("reset")

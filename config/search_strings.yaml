@@ -1,0 +1,47 @@
+_note: Curated Boolean search strings. When this file exists, discover skips LLM generation.
+      Edit queries here, or delete this file to regenerate from icp_config.yaml.
+search_strings:
+- segment: SEGMENT 1 — Peer Competitor
+  query: (title:"SVP Engineering" OR title:"Head of Platform" OR title:"Director of Engineering") AND ("Kubernetes" OR "platform
+    engineering" OR "microservices") AND ("Banking" OR "Fintech" OR "Investment Bank")
+  rationale: Surfaces lateral peers at global banks and fintech firms navigating the same platform modernization and team-scale
+    challenges as Anindya — ideal for mutual knowledge exchange on architectural tradeoffs at regulated-environment scale.
+- segment: SEGMENT 1 — Peer Competitor
+  query: (title:"Head of Cloud Engineering" OR title:"Head of Infrastructure" OR title:"VP of Platform Engineering") AND ("AWS"
+    OR "Terraform" OR "FinOps") AND ("Financial Services" OR "Fintech" OR "Cloud Computing")
+  rationale: Targets cloud and infrastructure heads in financial services who are operating at the same seniority and solving
+    cloud cost governance and infrastructure-at-scale problems — peers worth a genuine peer-framed conversation.
+- segment: SEGMENT 2 — Senior Leader
+  query: (title:"CTO" OR title:"VP of Engineering" OR title:"Chief Technology Officer") AND ("platform engineering" OR "FinOps"
+    OR "Kubernetes") AND ("Fintech" OR "Banking" OR "Investment Bank")
+  rationale: Finds C-suite and VP-level technology leaders in banking and fintech who are 1-2 steps ahead on the CTO path
+    — especially those who have already solved the organizational and architectural challenges Anindya is currently navigating.
+- segment: SEGMENT 2 — Senior Leader
+  query: (title:"EVP Technology" OR title:"MD Technology" OR title:"CIO") AND ("cloud architecture" OR "platform modernization"
+    OR "microservices") AND ("Banking" OR "Financial Services" OR "Capital Markets")
+  rationale: Targets EVP/MD/CIO-level tech leaders in regulated banking and capital markets environments — people who made
+    the transition from engineering leadership to enterprise technology strategy and can offer sponsorship and career trajectory
+    insight.
+- segment: SEGMENT 2 — Senior Leader
+  query: (title:"VP Engineering" OR title:"Head of Engineering" OR title:"CTO") AND ("DevOps" OR "cloud infrastructure" OR
+    "AWS") AND ("Series B" OR "Series C" OR "Startup" OR "Fintech")
+  rationale: Surfaces senior tech leaders at high-growth fintech and cloud infrastructure startups who have scaled engineering
+    organizations from scratch — thought leaders likely to engage with intellectual, peer-framed outreach on platform scaling
+    tradeoffs.
+- segment: SEGMENT 3 — Hiring Decision Maker
+  query: (title:"VP of Engineering" OR title:"Engineering Director" OR title:"Head of Engineering") AND ("platform engineering"
+    OR "Kubernetes" OR "cloud infrastructure") AND ("Goldman Sachs" OR "Morgan Stanley" OR "JP Morgan" OR "Barclays")
+  rationale: Targets senior engineering leaders at tier-1 investment banks who directly influence or own Director/VP/SVP engineering
+    hiring decisions — building warm presence here before opportunities arise is the highest-leverage move at Anindya's seniority.
+- segment: SEGMENT 3 — Hiring Decision Maker
+  query: (title:"CTO" OR title:"VP Engineering" OR title:"Director of Engineering") AND ("AWS" OR "GCP" OR "Azure") AND ("Razorpay"
+    OR "PhonePe" OR "Paytm" OR "Wise" OR "Revolut")
+  rationale: Finds CTO and VP-level hiring decision makers at high-scale fintech product companies in India, UK, and Singapore
+    — organizations actively building platform and cloud capabilities where Anindya's regulated banking and cloud architecture
+    background is a direct fit.
+- segment: SEGMENT 3 — Hiring Decision Maker
+  query: (title:"Technical Talent Partner" OR title:"Engineering Recruiter" OR title:"VP Talent") AND ("platform engineering"
+    OR "cloud" OR "FinOps") AND ("Fintech" OR "Banking" OR "Series B" OR "Series C")
+  rationale: Surfaces senior technical recruiters and talent partners embedded in fintech and banking engineering orgs — these
+    are the bridge contacts who can facilitate warm introductions to hiring managers and flag opportunities before they are
+    publicly posted.
