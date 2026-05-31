@@ -70,10 +70,30 @@ def auth():
 
 @cli.command("discover")
 @click.option("--icp", default="icp1", show_default=True, help="ICP key from icp_config.yaml")
-@click.option("--max-per-query", default=10, show_default=True, help="Max profiles per search string")
+@click.option("--max-per-query", default=10, show_default=True, help="Max top-match profiles to keep per search string")
 @click.option("--location", default=None, help="Override region (default: India). E.g. --location 'United Kingdom'")
-def discover(icp, max_per_query, location):
-    """Search LinkedIn and discover ICP profiles (default region: India)."""
+@click.option("--fresh", is_flag=True, default=False, help="Clear all existing pipeline data before discovering")
+def discover(icp, max_per_query, location, fresh):
+    """Search LinkedIn and discover ICP profiles (default region: India).
+
+    \b
+    With --fresh: wipes the database and run ID so you start with a clean slate.
+    Fetches 2× max-per-query candidates per query then keeps only the top STRONG
+    ICP matches, so --max-per-query 1 returns the single best-fitting profile.
+    """
+    if fresh:
+        console.print(
+            "\n[bold yellow]--fresh:[/bold yellow] This will delete all existing pipeline data.\n"
+        )
+        if not click.confirm("Clear all pipeline data and start fresh?", default=False):
+            console.print("[dim]Aborted.[/dim]")
+            return
+        ConnectionScheduler().reset()
+        run_id_file = Path("outputs/.current_run_id")
+        if run_id_file.exists():
+            run_id_file.unlink()
+        console.print("[green]Pipeline cleared. Starting fresh discovery.[/green]\n")
+
     LinkedInConnectionCrew().discover_profiles(icp_key=icp, max_per_query=max_per_query, location=location)
 
 
@@ -313,20 +333,120 @@ def create_search_config(excel_path, output):
         console.print(f"  [dim]{seg}: {n}[/dim]")
 
 
-@cli.command("reset")
-def reset_pipeline():
-    """Delete all pipeline data from the database and start fresh."""
+@cli.command("init-persona")
+@click.option("--name", prompt="Your full name", help="Your name")
+@click.option("--role", prompt="Your current role / title", help="e.g. Content Marketing Lead")
+@click.option("--company", prompt="Your company", help="e.g. Stealth AI Startup")
+@click.option("--background", prompt="Your background (1-2 sentences)", help="What you bring to the conversation")
+@click.option("--linkedin-url", prompt="Your LinkedIn URL", help="https://www.linkedin.com/in/yourhandle/")
+@click.option(
+    "--goal",
+    type=click.Choice(["PEER_COLLABORATION", "CLIENT_ACQUISITION", "TALENT_ACQUISITION",
+                        "JOB_HUNTING", "INVESTOR_OUTREACH"], case_sensitive=False),
+    prompt="Outreach goal",
+    help="What you want to achieve with these connections",
+)
+@click.option("--location", default="India", show_default=True, help="Target location")
+def init_persona(name, role, company, background, linkedin_url, goal, location):
+    """Create config/persona.yaml from a simple prompt — replaces all hardcoded sender info."""
+    import yaml as _yaml
+    from pathlib import Path as _Path
+
+    goal_framing = {
+        "PEER_COLLABORATION":  "Building a warm peer network for knowledge exchange and mutual learning.",
+        "CLIENT_ACQUISITION":  "Building warm relationships with potential clients before any commercial conversation.",
+        "TALENT_ACQUISITION":  "Connecting with talented people who might be a great fit for open roles.",
+        "JOB_HUNTING":         "Exploring opportunities by genuinely engaging with people doing interesting work.",
+        "INVESTOR_OUTREACH":   "Connecting with investors whose thesis aligns with your work.",
+    }
+
+    tone_map = {
+        "PEER_COLLABORATION":  "peer",
+        "CLIENT_ACQUISITION":  "consultant",
+        "TALENT_ACQUISITION":  "recruiter",
+        "JOB_HUNTING":         "job_seeker",
+        "INVESTOR_OUTREACH":   "peer",
+    }
+
+    persona = {
+        "sender": {
+            "name": name,
+            "role": role,
+            "company": company,
+            "background": background,
+            "linkedin_url": linkedin_url,
+        },
+        "goal": goal.upper(),
+        "goal_description": goal_framing[goal.upper()],
+        "outreach_tone": tone_map[goal.upper()],
+        "message_context": (
+            f"{name} wants to connect with relevant professionals in a genuine, "
+            f"non-transactional way. Messages should reflect curiosity about the "
+            f"recipient's work, not pitch {name}'s services or background."
+        ),
+        "target": {
+            "description": f"Relevant professionals for {name}'s goal: {goal}",
+            "roles": [],
+            "industries": [],
+            "keywords": [],
+            "locations": [location],
+            "connection_degree": "2nd",
+            "daily_connection_limit": 20,
+        },
+        "segments": [
+            {"name": "Primary Target", "description": f"Core audience for {goal} goal", "priority": 3},
+            {"name": "Secondary Target", "description": "Adjacent audience worth connecting with", "priority": 2},
+        ],
+    }
+
+    out = _Path("config/persona.yaml")
+    out.write_text(
+        _yaml.dump(persona, allow_unicode=True, sort_keys=False, default_flow_style=False,
+                   width=100),
+        encoding="utf-8",
+    )
+    console.print(f"\n[bold green]Persona saved → {out}[/bold green]")
     console.print(
-        "\n[bold red]WARNING:[/bold red] This permanently deletes all discovered profiles,"
-        " analysis data, and generated messages.\n"
+        "\n[dim]Next steps:[/dim]\n"
+        "  1. Open [bold]config/persona.yaml[/bold] and fill in target.roles, "
+        "target.industries, target.keywords\n"
+        "  2. Delete [bold]config/search_strings.yaml[/bold] so queries are regenerated for your persona\n"
+        "  3. Run: [bold]python main.py discover --fresh[/bold]\n"
+        "     The agent will generate boolean queries, auto-test them, and only use ones that return results."
+    )
+
+
+@cli.command("reset")
+@click.option("--all", "wipe_all", is_flag=True, default=False,
+              help="Also delete downloaded PDFs and all Excel review files")
+def reset_pipeline(wipe_all):
+    """Delete all pipeline data from the database and start fresh."""
+    extras = " and all downloaded PDFs + Excel files" if wipe_all else ""
+    console.print(
+        f"\n[bold red]WARNING:[/bold red] This permanently deletes all discovered profiles,"
+        f" analysis data, and generated messages{extras}.\n"
     )
     if not click.confirm("Are you sure you want to reset?", default=False):
         console.print("[dim]Aborted.[/dim]")
         return
+
     ConnectionScheduler().reset()
+
     run_id_file = Path("outputs/.current_run_id")
     if run_id_file.exists():
         run_id_file.unlink()
+
+    if wipe_all:
+        import shutil
+        pdf_dir = Path("outputs/profiles/pdfs")
+        if pdf_dir.exists():
+            shutil.rmtree(str(pdf_dir))
+            pdf_dir.mkdir(parents=True, exist_ok=True)
+            console.print("[dim]PDFs cleared.[/dim]")
+        for xlsx in Path("outputs").rglob("profiles_review_*.xlsx"):
+            xlsx.unlink()
+            console.print(f"[dim]Removed {xlsx}[/dim]")
+
     console.print("[bold green]Pipeline reset complete. Ready for a fresh run.[/bold green]")
 
 

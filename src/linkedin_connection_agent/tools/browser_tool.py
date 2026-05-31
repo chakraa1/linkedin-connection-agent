@@ -35,6 +35,82 @@ def _sleep():
     time.sleep(random.uniform(_DELAY_MIN, _DELAY_MAX))
 
 
+def _parse_card_text(raw: str) -> tuple[str, str]:
+    """Extract (name, headline) from LinkedIn search card link text.
+
+    Card text format: "Name • 2nd\\n\\nHeadline\\n\\nLocation"
+    Degree indicator (• 2nd / • 3rd) is stripped from name.
+    Returns ("", "") if the text can't be parsed meaningfully.
+    """
+    if not raw:
+        return "", ""
+    # Split on bullet (degree indicator) first
+    if "•" in raw:
+        name_part, rest = raw.split("•", 1)
+        name = name_part.strip()
+        # Rest is "2nd\n\nHeadline\n\nLocation" — skip the degree token
+        segments = [s.strip() for s in rest.split("\n\n") if s.strip()]
+        # segments[0] = "2nd" or "3rd", segments[1] = headline
+        headline = segments[1] if len(segments) >= 2 else (segments[0] if segments else "")
+        # Sanity: degree tokens are short; if headline looks like a degree, skip
+        if headline in ("1st", "2nd", "3rd", "Connection", "Follow"):
+            headline = ""
+    else:
+        # No bullet — just the name, no degree
+        segments = [s.strip() for s in raw.split("\n\n") if s.strip()]
+        name = segments[0][:80] if segments else raw[:80]
+        headline = segments[1] if len(segments) >= 2 else ""
+    return name[:100], headline[:200]
+
+
+_SKIP_LINES = {
+    "Message", "Follow", "Connect", "More", "Share", "Unfollow",
+    "1st", "2nd", "3rd", "Contact info", "Open to", "Open for",
+    "Saved", "Pending", "Withdraw", "Report / Block",
+}
+
+
+def _extract_headline_from_body(body_text: str, name: str) -> str:
+    """Extract the LinkedIn headline from page body text.
+
+    LinkedIn's body text has a consistent structure near the top:
+        [Name]
+        [Headline]
+        [Location] · [Contact info]
+        Message / Follow / Connect
+
+    We find the first occurrence of the person's first name (or full name),
+    then scan the next few non-empty lines for the headline.
+    """
+    if not body_text or not name:
+        return ""
+
+    first_name = name.split()[0] if name else ""
+    lines = [ln.strip() for ln in body_text.split("\n") if ln.strip()]
+
+    # Locate name in body text
+    name_idx = -1
+    for i, line in enumerate(lines):
+        if name in line or (first_name and first_name in line and len(line) < 120):
+            name_idx = i
+            break
+
+    if name_idx < 0:
+        return ""
+
+    # Scan the next 6 lines for a plausible headline
+    for line in lines[name_idx + 1: name_idx + 7]:
+        if (line not in _SKIP_LINES
+                and len(line) > 8
+                and not line.startswith("·")
+                and not line.startswith("0 ")
+                and "notification" not in line.lower()
+                and "Skip to" not in line):
+            return line[:200]
+
+    return ""
+
+
 class LinkedInBrowser:
     """Context manager for a Playwright LinkedIn browser session."""
 
@@ -113,16 +189,30 @@ class LinkedInBrowser:
     def _build_search_url(query: str) -> str:
         """
         Split a boolean query into LinkedIn's proper URL parameters.
-        - title:"..." terms  → titleFacets (LinkedIn's native title filter)
-        - remaining keywords → keywords param (supports OR/AND between phrases)
-        """
-        title_terms = re.findall(r'title:"([^"]+)"', query, re.IGNORECASE)
+        - title:"..." terms in positive context → titleFacets (LinkedIn's native include filter)
+        - remaining keywords including NOT clauses → keywords param (supports AND/OR/NOT)
 
-        # Remove all title:"..." fragments (and any trailing OR that follows each one)
-        keyword_part = re.sub(r'title:"[^"]*"(\s*OR\s*)?', '', query, flags=re.IGNORECASE)
-        # Remove empty parens left behind first, then strip leading AND/OR
-        keyword_part = re.sub(r'\(\s*\)', '', keyword_part)
-        keyword_part = re.sub(r'^\s*(AND|OR)\s*', '', keyword_part.strip()).strip()
+        Title terms inside NOT(...) blocks are deliberately NOT added to titleFacets
+        (titleFacets only supports inclusion). They stay in the keyword_part so LinkedIn
+        can apply them as keyword-level NOT exclusions.
+        """
+        # Step 1: Extract all NOT(...) blocks to separate them from the positive query
+        not_blocks = re.findall(r'\bNOT\s*\([^)]+\)', query, re.IGNORECASE)
+        not_inline = re.findall(r'\bNOT\s+"[^"]+"', query, re.IGNORECASE)
+
+        # Step 2: Positive query = original minus all NOT blocks
+        positive_query = re.sub(r'\bNOT\s*\([^)]+\)', '', query, flags=re.IGNORECASE)
+        positive_query = re.sub(r'\bNOT\s+"[^"]+"', '', positive_query, flags=re.IGNORECASE)
+
+        # Step 3: Extract title facets only from the positive query (never from NOT context)
+        title_terms = re.findall(r'title:"([^"]+)"', positive_query, re.IGNORECASE)
+
+        # Step 4: Build keyword_part = positive query minus title terms + NOT blocks appended
+        kw_positive = re.sub(r'title:"[^"]*"(\s*OR\s*)?', '', positive_query, flags=re.IGNORECASE)
+        kw_positive = re.sub(r'\(\s*\)', '', kw_positive)
+        kw_positive = re.sub(r'^\s*(AND|OR)\s*', '', kw_positive.strip()).strip()
+        not_suffix = " ".join(not_blocks + not_inline).strip()
+        keyword_part = (kw_positive + " " + not_suffix).strip()
 
         params: list[tuple[str, str]] = []
         if keyword_part:
@@ -162,6 +252,8 @@ class LinkedInBrowser:
                     headline_el = (
                         card.query_selector(".entity-result__primary-subtitle")
                         or card.query_selector(".entity-result__summary")
+                        or card.query_selector(".entity-result__content span[aria-hidden='true']")
+                        or card.query_selector("span.entity-result__title-text ~ div span")
                     )
                     link_el = card.query_selector("a[href*='/in/']")
                     if not link_el:
@@ -181,18 +273,18 @@ class LinkedInBrowser:
                         "url": href,
                     })
             else:
-                # Fallback: collect all /in/ links on the page
+                # Fallback: collect all /in/ links on the page and parse name+headline
+                # from the link text (format: "Name • Nth\n\nHeadline\n\nLocation")
                 all_links = self._page.query_selector_all("a[href*='/in/']")
                 for link_el in all_links:
                     href = (link_el.get_attribute("href") or "").split("?")[0].rstrip("/")
                     if "/in/" not in href or href in seen_urls:
                         continue
                     seen_urls.add(href)
-                    profiles.append({
-                        "name": link_el.inner_text().strip()[:80],
-                        "headline": "",
-                        "url": href,
-                    })
+                    raw = link_el.inner_text().strip()
+                    # Parse "Name • 2nd\n\nHeadline\n\nLocation" structure
+                    name, headline = _parse_card_text(raw)
+                    profiles.append({"name": name, "headline": headline, "url": href})
 
             if len(profiles) >= max_results:
                 break
@@ -218,22 +310,27 @@ class LinkedInBrowser:
 
         data: dict = {"url": profile_url}
 
-        # Name
+        # Name — try h1, fall back to page title ("Name | LinkedIn")
         try:
-            data["name"] = self._page.query_selector("h1").inner_text().strip()
+            h1 = self._page.query_selector("h1")
+            data["name"] = h1.inner_text().strip() if h1 else ""
         except Exception:
             data["name"] = ""
+        if not data["name"]:
+            try:
+                title = self._page.title()
+                data["name"] = title.replace("| LinkedIn", "").replace("| LinkedIn", "").strip().rstrip("|").strip()
+            except Exception:
+                pass
 
-        # Headline
+        # Headline — LinkedIn now uses hashed CSS classes that change with each deploy.
+        # Parse from page body text: headline appears right after the person's name.
+        data["headline"] = ""
         try:
-            el = (
-                self._page.query_selector(".text-body-medium.break-words")
-                or self._page.query_selector(".pv-text-details__left-panel .text-body-medium")
-                or self._page.query_selector("[data-view-name='profile-component-entity'] .text-body-medium")
-            )
-            data["headline"] = el.inner_text().strip() if el else ""
+            body_text = self._page.evaluate("() => document.body.innerText") or ""
+            data["headline"] = _extract_headline_from_body(body_text, data.get("name", ""))
         except Exception:
-            data["headline"] = ""
+            pass
 
         # Scroll down gradually so lazy-loaded sections render
         for offset in [400, 800, 1200]:

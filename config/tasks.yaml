@@ -1,62 +1,44 @@
 generate_boolean_search_task:
   description: >
-    Generate 6-8 LinkedIn Boolean search strings across THREE priority segments
-    for Anindya Chakraborty's (SVP, Product Engineering, Nomura) executive
-    network expansion.
+    Generate 6-9 LinkedIn People Search Boolean strings for {sender_name}
+    ({sender_role} at {sender_company}) to support this goal: {goal}.
 
-    Target Network Profile:
-    {target_profile_description}
+    Goal context: {goal_description}
 
+    Target description: {target_description}
     Target roles: {target_roles}
     Industries: {industries}
     Locations: {locations}
     Keywords: {keywords}
 
-    SEGMENT BREAKDOWN FOR SEARCH STRINGS:
-    Distribute your 6-8 strings across these three segments:
+    Segment breakdown: {segments}
 
-    SEGMENT 1 — PEER COMPETITORS (2 strings):
-    Same level leaders: SVP Engineering, Director of Engineering, Head of Platform,
-    Head of Cloud, Head of Infrastructure.
-    Industries: Global Investment Banks, Fintech, Product Companies.
-    Goal: Surface lateral peers navigating similar architectural and team scale
-    challenges for knowledge exchange and market awareness.
+    LINKEDIN BOOLEAN SEARCH RULES (critical — queries that break these return zero results):
+    1. Maximum 2 AND-joined keyword groups per query — 3+ drops to zero results.
+       GOOD: (titles) AND ("keyword1" OR "keyword2")
+       GOOD: (titles) AND ("keyword1" OR "keyword2") AND ("industry1" OR "industry2")
+       BAD:  (titles) AND (keywords) AND (industry) AND (company) — too many AND groups
+    2. Use title:"..." for job titles — these go into LinkedIn's native title filter.
+    3. Keyword groups search across full profile text (headline, about, experience, education).
+       School names (IIM, ISB, IIT) and company names (McKinsey, Goldman Sachs) are valid keywords.
+    4. Do NOT use "LinkedIn Top Voice" — it is a platform badge, not profile text.
+    5. Keep each query under 200 characters total.
+    6. Use AND, OR, NOT in UPPERCASE only.
 
-    SEGMENT 2 — SENIOR LEADERS AHEAD ON CAREER PATH (3 strings):
-    Target: CTO, CIO, VP Engineering, EVP Technology, MD Technology.
-    Industries: Investment Banking, Fintech, Global Product Companies, Cloud Infra.
-    Goal: Find leaders who made the transition from Architect/Director to VP/CTO
-    in regulated or high-scale environments. People 1-2 career steps ahead.
-
-    SEGMENT 3 — HIRING DECISION MAKERS (2-3 strings):
-    Target: VPs, CTOs, Engineering Directors, Senior Hiring Managers at target
-    organizations who have influence over Director/VP/SVP Engineering hiring.
-    Industries: Global Investment Banks, Tier-1 Fintech, Product-Led Tech Companies.
-    Goal: Build warm presence before opportunities arise.
-
-    LinkedIn Boolean search operators:
-    - AND, OR, NOT (must be UPPERCASE)
-    - Quotes for exact phrases: "Platform Engineering"
-    - Parentheses for grouping
-    - title: operator for job title filtering
-
-    MANDATORY QUERY FORMAT:
-    (title:"Role1" OR title:"Role2" OR title:"Role3") AND ("keyword1" OR "keyword2") AND ("industry1" OR "industry2")
-
-    Requirements for each search string:
-    1. Exactly 3 AND-joined groups: (titles) AND (domain keywords) AND (industry/context)
-    2. Maximum 3 title: options per query
-    3. Maximum 3-4 options per keyword/industry group
-    4. HARD LIMIT: each complete query must be under 180 characters
-    5. Do NOT chain more than 3 groups
+    PROVEN PATTERNS (use these as templates):
+    - Title + industry:   (title:"CTO" OR title:"VP Engineering") AND ("Banking" OR "Fintech")
+    - Title + school:     (title:"CTO" OR title:"Head of Engineering") AND ("IIM" OR "ISB" OR "IIT")
+    - Title + firm name:  (title:"Partner" OR title:"Managing Director") AND ("McKinsey" OR "BCG" OR "Bain & Company")
+    - Title + bank name:  (title:"Head of Engineering" OR title:"Managing Director") AND ("Goldman Sachs" OR "JP Morgan" OR "Barclays")
+    - Title + role signal:(title:"CTO" OR title:"Managing Director") AND ("Speaker" OR "Author" OR "Advisor") AND ("Banking" OR "Fintech")
 
   expected_output: >
-    A JSON array of search strings with segment and rationale:
+    A JSON array of search strings with segment and rationale. Valid JSON only, no prose.
     [
       {
-        "segment": "SEGMENT 2 — Senior Leader",
-        "query": "(title:\"CTO\" OR title:\"VP of Engineering\" OR title:\"Head of Engineering\") AND (\"platform engineering\" OR \"FinOps\" OR \"Kubernetes\") AND (\"Fintech\" OR \"Banking\" OR \"Startup\")",
-        "rationale": "Targets C-suite tech leaders in financial services with platform/cloud expertise — 1-2 steps ahead on career path"
+        "segment": "SEGMENT NAME",
+        "query": "(title:\"Role1\" OR title:\"Role2\") AND (\"keyword1\" OR \"keyword2\")",
+        "rationale": "One sentence explaining what this query surfaces and why"
       }
     ]
-    (6-8 entries total covering all 3 segments, valid JSON array only)
+    (6-9 entries total, valid JSON array only)

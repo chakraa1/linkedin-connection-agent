@@ -2,63 +2,51 @@
 
 ## Overview
 
-A 7-phase multi-agent pipeline that discovers LinkedIn profiles across three ICP segments, analyses them with AI, generates personalized ≤300-character connection notes, and sends them — with explicit human approval before anything reaches LinkedIn.
+A pipeline that discovers senior LinkedIn profiles across 5 ICP segments, generates personalised 200–300 word outreach messages using cached Claude Sonnet prompts, and sends connection requests — with explicit human approval before anything reaches LinkedIn.
 
 **Sender:** Anindya Chakraborty — SVP, Product Engineering at Nomura  
-**Goal:** Build a warm executive network across peers, senior leaders, and hiring decision-makers before opportunities arise.
+**Goal:** Build a warm executive network across C-suite leaders, elite MBA graduates, top consulting firm leaders, and LinkedIn Top Voice thought leaders.
 
 ---
 
 ## Pipeline at a Glance
 
 ```
-Phase 1        Phase 2        Phase 3           Phase 4         Phase 5          Phase 6        Phase 7
-─────────      ──────────     ──────────        ─────────       ──────────       ───────────    ──────────
-Boolean   →    Profile   →    Profile +    →    Message   →    Message    →    Human      →    Send
-Search         Discovery      Post Analysis     Generation      Validation       Review         Connection
-(CrewAI)       (Playwright)   (CrewAI ×2)       (CrewAI)        (Local+LLM)      (Rich CLI)     (Playwright)
+Phase 1          Phase 2           Phase 3             Phase 4        Phase 5
+─────────        ──────────        ──────────          ─────────      ──────────
+Boolean     →    Profile      →    Message         →   Human     →   Send
+Search           Discovery         Generation          Review         Connection
+(YAML or         (Playwright       (Claude Sonnet       (Excel)        (Playwright)
+ CrewAI)          + body-text       cached, 8-rule
+                  scraping)         quality gate)
 ```
 
 ---
 
-## Phase 1 — Boolean Search Generation
+## Phase 1 — Boolean Search Loading / Generation
 
-**Agent:** `boolean_search_agent` (Claude Sonnet)  
-**Trigger:** `python main.py discover` or `python main.py run`
+**Trigger:** `python main.py discover`
 
-The agent generates **6–8 LinkedIn Boolean search strings** distributed across three segments:
+### Priority loading
 
-### Segment 1 — Peer Competitors (2 strings)
-> Same-level leaders navigating identical architectural and team-scale challenges.
+1. If `config/search_strings.yaml` exists → load directly (zero LLM cost, zero latency)
+2. If missing → generate via `boolean_search_agent` (Claude Sonnet + CrewAI), auto-save to YAML
 
-- **Roles:** SVP Engineering, Director of Engineering, Head of Platform, Head of Cloud, Head of Infrastructure
-- **Industries:** Global Investment Banks, Fintech, Product Companies
-- **Purpose:** Knowledge exchange and market awareness — what are peers at Goldman, Morgan Stanley, Razorpay, PhonePe building?
+The YAML file is the source of truth. Delete it to regenerate from `icp_config.yaml`.
 
-### Segment 2 — Senior Leaders Ahead on Career Path (3 strings)
-> Leaders who have already solved the problems Anindya is currently navigating.
+### Current ICP Segments (9 queries across 5 segments)
 
-- **Roles:** CTO, CIO, VP Engineering, EVP Technology, MD Technology
-- **Industries:** Investment Banking, Fintech, Global Product Companies, Cloud Infra
-- **Purpose:** Career mentorship, thought leadership, future sponsorship. Priority: active posters and conference speakers.
+| Segment | Target | Purpose |
+|---------|--------|---------|
+| **1 — C-Suite Leaders** | CTO, CDO, MD, EVP, Group Head in banking/fintech | Career mentorship, sponsorship, board-level visibility |
+| **2 — Elite MBA + Tech** | ISB, IIM-A/B/C, INSEAD, Wharton, Harvard grads in senior tech roles | Shared credential = natural conversation opener, higher acceptance rate |
+| **3 — Top Consulting** | McKinsey, BCG, Bain, Deloitte, EY, KPMG, PwC Partners / MDs / Principals | Cross-firm architecture patterns, regulated-environment perspective |
+| **4 — Thought Leaders** | LinkedIn Top Voice badge holders + Keynote Speakers / Authors | High-follower accounts already engaged with ideas — more likely to respond |
+| **5 — Tier-1 Banks** | Engineering heads at Goldman, Morgan Stanley, JPMorgan, HSBC, Barclays | Warm presence before career opportunities arise |
 
-### Segment 3 — Hiring Decision Makers (2–3 strings)
-> People who can refer, recommend, or directly open doors.
+**Keywords excluded from all queries:** DevOps, SRE, GCP, Azure, Software Engineer, Lead Engineer — these narrow to execution roles rather than leadership.
 
-- **Roles:** Engineering Directors, VPs, CTOs, Senior Hiring Managers, Technical Talent Partners
-- **Industries:** Global Investment Banks, Tier-1 Fintech, Product-Led Tech, Series B+ Cloud/Infra Startups
-- **Purpose:** Build warm presence before opportunities arise — warm network contacts, not cold applications.
-
-### Output Format
-```json
-[
-  {
-    "segment": "SEGMENT 2 — Senior Leader",
-    "query": "(title:\"CTO\" OR title:\"VP Engineering\") AND (\"AWS\" OR \"Platform\") AND (\"Fintech\" OR \"Banking\")",
-    "rationale": "Targets C-suite tech leaders in financial services with platform/cloud expertise"
-  }
-]
-```
+**Follower count limitation:** LinkedIn's boolean search has no follower-count filter. "LinkedIn Top Voice" keyword is the only reliable proxy (LinkedIn awards it to accounts with 10k+ engaged followers).
 
 ---
 
@@ -67,188 +55,171 @@ The agent generates **6–8 LinkedIn Boolean search strings** distributed across
 **Tool:** Playwright browser automation (`browser_tool.py`)  
 **Storage:** SQLite via `ConnectionScheduler`
 
-For each Boolean search string:
-1. Opens LinkedIn People Search (targets 1st + 2nd degree connections)
-2. Extracts `{name, headline, url}` from result cards
-3. Paginates until `max_per_query` limit is reached
-4. Deduplicates by profile URL — same person cannot enter twice
-5. Saves each profile as status `discovered` in `outputs/scheduler.db`
+### How profiles are selected
 
-**Rate limiting:** 2–4 second random delays between actions. Daily limit: 20 connections (configurable in `icp_config.yaml`).
+For each Boolean search string:
+
+1. **Fetch 2× candidates from LinkedIn** (capped at 15 per query) — fetching more than `max-per-query` ensures enough candidates to pick the best from.
+2. **Parse headline from search card** — LinkedIn's search results use a fallback link selector. `_parse_card_text()` extracts name and headline from the combined card text (format: "Name • 2nd\n\nHeadline\n\nLocation").
+3. **Seniority pre-filter (Phase 1):** If a non-empty headline is found, check against include/exclude lists using word-boundary regex. Empty headlines pass through to Phase 2 scraping.
+4. **Visit each profile, scrape full headline** — LinkedIn removed stable CSS class names. The agent parses the page body text using `_extract_headline_from_body()`, which finds the headline by its position after the person's name in the rendered page content. Works regardless of LinkedIn's DOM/CSS changes.
+5. **Seniority re-check (Phase 2):** Apply include/exclude list to the scraped headline.
+6. **ICP scoring:** Score STRONG / WEAK / MISMATCH against `icp_config.yaml` (roles, industries, keywords including ISB/IIM/consulting firm names).
+7. **Select top matches:** STRONG profiles saved first, WEAK fill remaining slots up to `max-per-query × number of queries`. MISMATCH profiles discarded.
+8. **Dedup by profile URL** — same person cannot enter the pipeline twice.
+
+### Seniority keywords
+
+**Include (senior):** Director and above, VP/SVP/EVP/CXO, CTO/CIO/CDO, Head of X, Managing Director, Partner, Principal, Associate Partner, Founder, General Manager, Regional/Country Manager, President.
+
+**Exclude (junior):** Junior, Software Engineer, Software Developer, Project/Program/Product Manager, Business Analyst, Data Analyst, Intern, Trainee, Associate (standalone).
+
+Word-boundary matching prevents false exclusions: "Director of Software Engineering" is not excluded by the "software engineer" exclude keyword.
 
 ---
 
-## Phase 3 — Profile + Post Analysis
+## Phase 3 — Profile Analysis (optional)
 
-**Agents:** `profile_analyzer_agent` + `post_analyzer_agent` (sequential CrewAI crew)  
 **Trigger:** `python main.py analyze`
 
-For each `discovered` profile:
+The `analyze` command scrapes recent posts and runs AI analysis on profiles in `discovered` status. It is **optional** — `generate-messages` works directly from `discovered` profiles using the About + Experience scraped during discovery.
 
-### 3a. Profile Scraping (Playwright)
-Visits the profile page and extracts:
-- Name, headline, About section
-- Top 3 experience entries
-- Top 5 skills
-- Attempts PDF download via **More → Save to PDF**
+When run:
+- **Post scraping:** Visits `linkedin.com/in/{profile}/recent-activity/` and extracts recent posts.
+- **Profile hook analysis:** Claude Sonnet identifies the top 3 executive conversation hooks (specific, non-obvious signals worth a peer conversation — named migrations, team scaling inflections, architectural decisions).
+- **Post hook analysis:** Claude Sonnet identifies the single best conversation entry point from recent posts. Returns `NO_POSTS_AVAILABLE` if no posts found.
 
-### 3b. Profile Analysis (Claude Sonnet)
-`profile_analyzer_agent` extracts the **top 3 executive conversation hooks** — non-obvious signals worth a peer conversation:
-
-| What counts as a hook | What doesn't |
-|----------------------|--------------|
-| Specific platform modernization they led | Their job title |
-| Career shift: legacy banking → high-growth fintech | "impressive career" |
-| Migrated 1000+ databases to AWS | Generic compliments |
-| Architectural decision revealing systems thinking | Anything findable in 5 seconds |
-| Transition from IC to engineering leader at scale | Current company name |
-
-### 3c. Post Analysis (Claude Haiku)
-`post_analyzer_agent` visits `linkedin.com/in/{profile}/recent-activity/shares/` and identifies the **single best conversation entry point** from the last 3 posts:
-- An architectural opinion or technology stance
-- A leadership tension surfaced ("managing tech debt vs delivery")
-- A macro prediction or contrarian take
-- A question posed to their audience
-
-Returns `NO_POSTS_AVAILABLE` if the profile has no recent activity.
-
-**Profile saved** as status `analyzed` with raw `profile_data` (JSON), `recent_posts` (JSON), and `pdf_path`.
+Analysis output is stored in `recent_posts` column and passed to the message writer in Phase 4.
 
 ---
 
 ## Phase 4 — Message Generation
 
-**Agent:** `message_writer_agent` (Claude Sonnet)  
-**Trigger:** `python main.py generate-messages`
+**Trigger:** `python main.py generate-messages`  
+**Model:** Claude Sonnet (cached system prompt)
 
-Writes a **≤300-character** LinkedIn connection note following this architecture:
+Writes a **200–300 word** LinkedIn outreach message. Works directly from `discovered` profiles — the `analyze` step is optional but improves message quality.
+
+### Profile context passed to the message writer
 
 ```
-Specific observation → Insight/tension → Curious question → Soft continuation
+LinkedIn URL: https://www.linkedin.com/in/...
+Name: [name]
+Headline: [headline]
+About: [first 600 chars]
+Experience: [top 4 roles, first 400 chars]
+
+AI Analysis (hooks and post data):
+[analyzed hooks + post hook if analyze was run]
+  OR
+[No post analysis — recipient has no public posts. Do not reference any posts.]
 ```
 
-### What the message MUST do
-- Reference something **specific to this one person** — their scale, a decision, a technology choice, or a post
-- Sound like an **SVP reaching out to a CTO/VP** — peer to peer
-- Make the message about **their work**, not the sender's background
-- End with a **genuine question** about their perspective or decision-making
-- Imply capability through insight — never claim "I have X years of experience"
+### Message structure (four short paragraphs, no bullets or headers)
 
-### What the message must NEVER do
-- Mention looking for roles, opportunities, or referrals
-- List sender's skills, tech stack, or years of experience
-- Use flattery ("amazing profile", "incredible work")
-- Show desperation ("kindly", "please help", "urgently")
-- Use a generic opener that could apply to 100 other profiles
+| Para | Purpose |
+|------|---------|
+| **1 — Hook** | One specific observation about this person — cannot be sent unchanged to 100 other leaders |
+| **2 — Who + Why** | One sentence on who Anindya is; one sentence on the shared domain or problem |
+| **3 — Curiosity** | A specific tension, tradeoff, or challenge relevant to their background — shows intellectual depth and eagerness to learn |
+| **4 — Ask** | Simple, direct ask ending with a genuine question (?) or CTA |
 
-### Example output
-> Saw your team's migration at scale across legacy and cloud. The runbook debt problem seems harder long-term than the schema work itself. Curious how you're handling rollback confidence when both environments are live?
+### What the message must never do
+
+- Reference posts if no `Post Hook` section exists in the AI Analysis
+- Use em-dashes (—), en-dashes (–), or double hyphens (--)
+- Mention jobs, referrals, resumes, or certifications
+- Use GPT filler: "leverage", "synergize", "touch base", "thought leadership", "game-changer", "deep dive"
+- Use hollow flattery: "amazing work", "impressive profile", "brilliant", "legend"
+- Make unhedged first-person claims: "I built", "I led", "we launched"
 
 ---
 
-## Phase 5 — Message Validation
+## Phase 5 — Message Validation (8-rule quality gate)
 
-**Two-layer gate:** local deterministic rules + LLM-as-judge  
-**Auto-revise:** up to 2× before surfacing to human review
+**Model:** Claude Sonnet (cached system prompt, ~1,250 tokens)  
+**Auto-revision:** up to 2× using Claude Haiku (cheaper for mechanical fixes)
 
-### 8 Quality Rules (A–H)
+Pre-computed facts (word count, sentence length, regex hits) are passed as ground truth so the LLM evaluates rules without re-counting.
 
-| Rule | Name | Method | Test |
-|------|------|--------|------|
-| A | CHARACTER_LIMIT | Deterministic | ≤ 300 chars — hard reject |
-| B | NO_JOB_ASK | Deterministic (regex) | No: "looking for opportunities", "please refer", "keep me in mind", "next play", "notice period" |
-| C | SPECIFIC_REFERENCE | LLM judge | Must reference something unique to this person — not applicable to 100 others |
-| D | EXECUTIVE_TONE | LLM judge | Must sound like SVP→CTO/VP peer outreach — not a junior candidate, recruiter, or salesperson |
-| E | CURIOSITY_TRIGGER | LLM judge | Recipient must think "interesting perspective", not "this person wants something" |
-| F | NO_DESPERATION | Deterministic (regex) | No: "desperately", "would be honored", "please connect", "kindly", "guru", "legend" |
-| G | NO_RESUME_SIGNAL | Deterministic (regex) | No sender skills, resume, CV, or years of experience — message is 100% about the recipient |
-| H | ENGAGEMENT_HOOK | LLM judge | Must end with a genuine question about recipient's work or decisions |
+| Rule | Name | Method | Check |
+|------|------|--------|-------|
+| A | HUMAN_TONE | LLM | Avg sentence ≤ 15 words; no GPT filler phrases |
+| B | WORD_COUNT | Pre-computed | 200–300 words — hard reject outside range |
+| C | EYE_CATCHING_HOOK | LLM | Opening is specific — cannot fit any other leader |
+| D | NON_OBVIOUS_QUESTION | LLM | Contains a practitioner-only insight or observation |
+| E | ACHIEVEMENT_GUARD | Pre-computed | No unhedged "I built / I led / we launched" |
+| F | FORMAT_COMPLIANCE | Pre-computed | No em-dashes, en-dashes, or double hyphens |
+| G | ROLE_ALIGNMENT | LLM | 3–5 distinct hooks for senior tech leadership audience |
+| I | ENGAGEMENT_HOOK | Pre-computed + LLM | Last sentence is a genuine question or direct CTA |
 
-On FAIL: Claude Sonnet revises the message with the issue list as feedback. Retried once. If still failing after 2 attempts, saved as `message_drafted` for human to fix during review.
+On FAIL: issues are passed to Claude Haiku which revises the message. Retried once. If still failing after 2 attempts, saved as `message_drafted` with issues flagged in terminal for human review.
 
 ---
 
-## Phase 6 — Human Review
+## Phase 6 — Human Review (Excel)
 
-**Interface:** Interactive Rich CLI  
-**Trigger:** `python main.py review`
+**Trigger:** `python main.py export` → review Excel → `python main.py import-review`
 
-For each `message_drafted` profile, displays:
+The Excel file (`outputs/YYYY-MM-DD/profiles_review_*.xlsx`) has four columns:
 
+| Column | Description |
+|--------|-------------|
+| Name | Profile display name |
+| LinkedIn URL | Clickable hyperlink |
+| Generated Message | 200–300 word outreach |
+| Shortlisted (Yes / No) | You fill this — drives import-review |
+
+- **Yes** → status `approved`, optional message edit in the cell is preserved
+- **No** → status `rejected`
+- **Blank** → unchanged
+
+Alternatively, use the interactive Rich CLI for real-time review:
+
+```bash
+python main.py review    # approve / edit / skip / reject per profile
 ```
-════════════════════════════════════════════════════
-┌─ Profile ────────────────────────────────────────┐
-│ Jane Smith                                        │
-│ CTO at FinBank | Cloud Architecture | AWS         │
-│ linkedin.com/in/janesmith                         │
-└──────────────────────────────────────────────────┘
-┌─ Most Recent Post (excerpt) ─────────────────────┐
-│ "We migrated 400 microservices to EKS. The        │
-│  networking layer broke first, not the app..."    │
-└──────────────────────────────────────────────────┘
-┌─ Proposed Message ───────────────────────────────┐
-│ Your EKS migration post surfaced something I've  │
-│ been sitting with — networking always breaks      │
-│ before the app in high-tenant environments.       │
-│ Curious whether CNI choice changed after that?   │
-│                                                   │
-│ 218 / 300 characters                             │
-└──────────────────────────────────────────────────┘
-Action [approve/edit/skip/reject]:
-```
-
-| Action | Outcome |
-|--------|---------|
-| `approve` | Status → `approved`, ready to send |
-| `edit` | Human types revised message (re-validated for 300-char limit), status → `approved` |
-| `skip` | Stays as `message_drafted`, shown again next review session |
-| `reject` | Status → `rejected`, human enters optional reason |
 
 ---
 
 ## Phase 7 — Send Connection Request
 
-**Tool:** Playwright browser automation  
-**Trigger:** `python main.py send --limit 20` (prompts for confirmation)
+**Trigger:** `python main.py send --limit 20` (prompts for confirmation)  
+**Tool:** Playwright browser (headful — never headless)
 
 For each `approved` profile:
-1. Navigates to profile URL
-2. Clicks **Connect** button (checks main CTA, then More → Connect dropdown)
-3. Clicks **Add a note**
-4. Fills in the approved message
-5. Clicks **Send**
-6. On success: status → `sent`  
-7. On failure: status → `failed` with error message logged
-
-> **Important:** Browser runs headful (non-headless) — LinkedIn detects headless Chromium more aggressively. Never switch to `headless=True` for the send phase.
+1. Navigate to profile URL
+2. Click **Connect** (checks main CTA, then More → Connect dropdown)
+3. Click **Add a note**
+4. Fill in the approved message
+5. Click **Send**
+6. Success → status `sent` | Failure → status `failed` with error logged
 
 ---
 
-## Profile Lifecycle (State Machine)
+## Profile Lifecycle
 
 ```
           ┌─────────────┐
-          │  discovered │  ← save_discovered() — profile URL found via search
+          │  discovered │  ← save_discovered() — profile URL found via search + scraped
           └──────┬──────┘
-                 │ scrape + AI analysis
+                 │  (optional) python main.py analyze
           ┌──────▼──────┐
-          │   analyzed  │  ← save_analyzed() — profile data + posts extracted
+          │   analyzed  │  ← save_analyzed() — hooks + post data extracted
           └──────┬──────┘
-                 │ message generated + validated
+                 │  python main.py generate-messages
         ┌────────▼────────┐
         │ message_drafted │  ← save_message() — message ready for human review
         └────────┬────────┘
           ┌──────┴──────┐
           │             │
    ┌──────▼──────┐  ┌───▼──────┐
-   │  approved   │  │ rejected │  ← human decision
+   │  approved   │  │ rejected │  ← human decision (Excel or CLI)
    └──────┬──────┘  └──────────┘
-          │ browser sends request
+          │  python main.py send
    ┌──────▼──────┐
-   │    sent     │  ← mark_sent() — connection request dispatched
+   │    sent     │  ← mark_sent()
    └─────────────┘
-          (LinkedIn response: pending / accepted / declined — tracked externally)
-
    ┌─────────────┐
    │   failed    │  ← mark_failed() — browser automation error
    └─────────────┘
@@ -256,77 +227,61 @@ For each `approved` profile:
 
 ---
 
-## CLI Command Reference
+## CLI Reference
 
 ```bash
-# One-time setup
-python main.py auth                          # Browser login + OAuth token exchange
+# Setup
+python main.py auth                                    # browser login + OAuth
+
+# Discovery
+python main.py discover --icp icp1 --max-per-query 5   # find top-match profiles
+python main.py discover --icp icp1 --max-per-query 5 --fresh  # wipe DB first
+python main.py discover --icp icp1 --location "United Kingdom"  # different region
+
+# Analysis (optional — improves message quality)
+python main.py analyze --limit 10
+
+# Message generation
+python main.py generate-messages --limit 20
+
+# Review
+python main.py export              # export Excel for review
+python main.py import-review       # sync Excel decisions back to DB
+python main.py review              # interactive Rich CLI review
+
+# Send
+python main.py send --limit 20     # sends approved (confirmation required)
 
 # Full pipeline
-python main.py run --icp icp1 --limit 10    # All phases end-to-end
+python main.py run-pipeline --icp icp1 --discover-limit 5 --message-limit 20
+python main.py run-pipeline --icp icp1 --discover-limit 5 --send  # auto-send after review
 
-# Step-by-step
-python main.py discover --icp icp1 --max-per-query 15   # Phase 1 + 2
-python main.py analyze --limit 10                        # Phase 3
-python main.py generate-messages --limit 10              # Phase 4 + 5
-python main.py review                                    # Phase 6
-python main.py send --limit 20                           # Phase 7 (confirms)
+# Inspect
+python main.py list                # all profiles
+python main.py list --status approved
+python main.py stats               # counts by status
 
-# Headless (no interactive review, outputs JSON)
-python run_headless.py --icp icp1 --limit 5
-
-# Inspect pipeline
-python main.py list                          # All profiles, all statuses
-python main.py list --status approved        # Filter by status
-python main.py stats                         # Count by status (pipeline health)
+# Reset
+python main.py reset               # wipe DB + run ID
+python main.py reset --all         # also wipe PDFs and old Excel files
 ```
 
 ---
 
-## Data Flow
+## Token Cost Design
 
-```
-icp_config.yaml
-    │  target_profile_description, target_roles, industries, keywords
-    ▼
-boolean_search_agent  ──►  6-8 Boolean search strings (with segment labels)
-    │
-    ▼
-Playwright (LinkedIn People Search)
-    │  profile URLs, names, headlines
-    ▼
-outputs/scheduler.db  [status: discovered]
-    │
-    ▼
-Playwright (profile scrape + PDF download + recent posts)
-    │
-    ▼
-profile_analyzer_agent + post_analyzer_agent
-    │  top 3 hooks, best post entry point
-    ▼
-outputs/scheduler.db  [status: analyzed]
-    │
-    ▼
-message_writer_agent  ──►  ≤300-char connection note draft
-    │
-    ▼
-MessageValidator (8 rules A–H)  ──►  auto-revise ×2 on FAIL
-    │
-    ▼
-outputs/scheduler.db  [status: message_drafted]
-    │
-    ▼
-Human review (Rich CLI)
-    │
-    ▼
-outputs/scheduler.db  [status: approved | rejected]
-    │
-    ▼
-Playwright (Connect + Add note + Send)
-    │
-    ▼
-outputs/scheduler.db  [status: sent | failed]
-```
+All LLM calls use prompt caching to minimise cost:
+
+| Call | Model | Cache threshold | When cached |
+|------|-------|----------------|-------------|
+| Profile analysis | Claude Sonnet | 1,024 tokens | All calls after first in a 5-min window |
+| Post analysis | Claude Sonnet | 1,024 tokens | All calls after first |
+| Message writing | Claude Sonnet | 1,024 tokens | All calls after first |
+| Quality gate (8 rules) | Claude Sonnet | 1,024 tokens | All calls after first |
+| Message revision | Claude Haiku | — | No caching (revisions are rare) |
+
+Cache write: 1.25× input cost. Cache read: 0.1× input cost.  
+For a 20-profile run on the quality gate alone (~1,250-token prompt), caching saves approximately 85% of input token cost from the second profile onward.
 
 ---
 
@@ -334,12 +289,14 @@ outputs/scheduler.db  [status: sent | failed]
 
 | Constraint | Reason |
 |---|---|
-| No silent sending — `send` always prompts for confirmation | Connection requests are irreversible; wrong message to wrong person is costly |
-| Human review is mandatory between generation and send | AI-generated messages can fail subtly on tone; a human sees nuance the validator misses |
-| Headful browser for connection sending | LinkedIn's bot detection is more aggressive against headless Chromium |
-| 20 connections/day limit | LinkedIn restricts accounts that send too many requests; conservative default avoids flags |
-| SHA-256 dedup on profile URL | Prevents re-discovering and re-messaging the same person across multiple sessions |
-| OAuth API is identity-only | LinkedIn's standard developer API does not support search or invitation endpoints — browser automation handles all interaction |
+| No silent sending — `send` always prompts | Connection requests are irreversible |
+| Human review before send | AI tone is subtly imperfect; a human catches what the validator misses |
+| Headful browser for sending | LinkedIn's bot detection is aggressive against headless Chromium |
+| 20 connections/day limit | Conservative default to avoid LinkedIn account restrictions |
+| Body-text headline parsing | LinkedIn removed stable CSS class names — DOM-agnostic extraction |
+| Word-boundary seniority matching | "Director of Software Engineering" must not be excluded by "software engineer" |
+| STRONG-first profile selection | Best ICP matches saved first; WEAK only fill remaining slots |
+| Post hallucination guard | Message writer explicitly told when no posts exist — cannot invent post references |
 
 ---
 
@@ -347,10 +304,10 @@ outputs/scheduler.db  [status: sent | failed]
 
 ```
 outputs/
-├── scheduler.db                 # SQLite — full profile lifecycle history
-├── linkedin_session.json        # Playwright cookies — gitignored
-├── linkedin_tokens.json         # OAuth access token — gitignored
-└── profiles/
-    └── pdfs/
-        └── <profile-id>.pdf     # Downloaded LinkedIn profile PDFs
+├── scheduler.db                    # SQLite — full profile lifecycle history
+├── .current_run_id                 # tracks active Excel file across pipeline steps
+├── linkedin_session.json           # Playwright cookies — gitignored
+├── linkedin_tokens.json            # OAuth access token — gitignored
+└── YYYY-MM-DD/
+    └── profiles_review_<id>.xlsx   # Excel review file for this run
 ```

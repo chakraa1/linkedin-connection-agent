@@ -1,50 +1,82 @@
 icp1:
-  name: "Peer Competitors & Senior Hiring Leaders"
+  name: "C-Suite, Elite MBA, Consulting and Thought-Leader Network"
   target_profile_description: >
     Anindya Chakraborty — SVP, Product Engineering at Nomura (19+ years experience).
-    Background in platform modernization, cloud architecture, and large-scale engineering
-    leadership in regulated banking and fintech environments. Actively building executive
-    network across three segments: lateral peers at similar seniority, senior leaders
-    1-2 career steps ahead (CTO/VP path), and hiring decision-makers at target organizations.
+    Background in platform modernisation, cloud architecture, and large-scale engineering
+    leadership in regulated banking and fintech environments. Building executive network
+    across four segments: C-suite technology leaders beyond VP/SVP, elite MBA graduates
+    in senior technology roles, consulting firm technology partners, and LinkedIn
+    influencers who actively publish on engineering and fintech topics.
+
   description: >
-    Senior engineers, engineering managers, directors, VPs, and CTOs in cloud and
-    platform engineering, fintech, and banking who hold hiring authority or regularly
-    refer opportunities to their network.
+    Senior technology leaders at CTO, MD, EVP, Group Head, or Partner level in banking,
+    fintech, and management consulting — with a strong preference for graduates from
+    ISB, IIM, INSEAD, Harvard, or Wharton, or individuals with LinkedIn Top Voice status.
+
   target_roles:
-    - "Head of Engineering"
-    - "VP of Engineering"
-    - "Director of Engineering"
-    - "Senior Engineering Manager"
-    - "Engineering Manager"
-    - "Principal Engineer"
-    - "Staff Engineer"
-    - "Head of Cloud Engineering"
-    - "Head of Platform Engineering"
-    - "Head of Infrastructure"
+    # C-Suite and executive tech leadership
     - "CTO"
-    - "VP of Platform Engineering"
-    - "VP of Infrastructure"
-    - "Director of Cloud"
-    - "Senior Solutions Architect"
+    - "CPTO"
+    - "Chief Technology Officer"
+    - "Chief Digital Officer"
+    - "Chief Information Officer"
+    - "Group Head Technology"
+    - "MD Technology"
+    - "EVP Technology"
+    - "EVP Engineering"
+    # VP and Director engineering leadership
+    - "VP of Engineering"
+    - "VP Technology"
+    - "Head of Technology"
+    - "Head of Engineering"
+    - "Head of Platform Engineering"
+    - "Director Technology"
+    - "Director of Engineering"
+    # Consulting senior titles
+    - "Partner"
+    - "Associate Partner"
+    - "Principal"
+    - "Managing Director"
+
   industries:
     - "Financial Services"
     - "Banking"
     - "Fintech"
+    - "Investment Banking"
+    - "Capital Markets"
     - "Technology"
+    - "Management Consulting"
     - "Cloud Computing"
+
+  # Keywords searched across headline, About, and Experience.
+  # Signals that indicate a strong ICP fit without requiring junior tech keywords.
+  # Removed: Azure, GCP, DevOps, SRE, Terraform — too low-level for C-suite targeting.
+  keywords:
+    - "ISB"
+    - "IIM"
+    - "INSEAD"
+    - "Harvard Business"
+    - "Wharton"
+    - "McKinsey"
+    - "BCG"
+    - "Bain"
+    - "Deloitte"
+    - "EY"
+    - "KPMG"
+    - "platform modernisation"
+    - "platform engineering"
+    - "cloud architecture"
+    - "cloud strategy"
+    - "digital transformation"
+    - "FinOps"
+    - "AWS"
+    - "Kubernetes"
+    - "microservices"
+    - "LinkedIn Top Voice"
+
   locations:
     - "India"
-  keywords:
-    - "AWS"
-    - "Azure"
-    - "GCP"
-    - "Kubernetes"
-    - "platform engineering"
-    - "cloud infrastructure"
-    - "DevOps"
-    - "FinOps"
-    - "microservices"
-    - "Terraform"
+
   connection_degree: "2nd"
   max_results_per_search: 25
   daily_connection_limit: 20

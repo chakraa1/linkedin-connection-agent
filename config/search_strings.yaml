@@ -1,47 +1,96 @@
-_note: Curated Boolean search strings. When this file exists, discover skips LLM generation.
-      Edit queries here, or delete this file to regenerate from icp_config.yaml.
+_note: >
+  All 9 queries tested live against LinkedIn — each confirmed to return 19-30+ results
+  before being committed here. Test script: test_queries.py
+  Rules learned from testing:
+  - Max 1-2 AND keyword groups; 3+ AND conditions → zero results
+  - "LinkedIn Top Voice" is a platform BADGE (not profile text) → unsearchable, removed
+  - Consulting firms: just firm name keyword, no extra AND condition needed
+  - Tier-1 bank names work directly; no need to combine with platform/cloud keywords
+  - IIT/IIM/ISB appear in education sections → valid keyword signal
+  - "Speaker" and "Author" appear in profile headlines → valid proxy for high-reach leaders
+
 search_strings:
-- segment: SEGMENT 1 — Peer Competitor
-  query: (title:"SVP Engineering" OR title:"Head of Platform" OR title:"Director of Engineering") AND ("Kubernetes" OR "platform
-    engineering" OR "microservices") AND ("Banking" OR "Fintech" OR "Investment Bank")
-  rationale: Surfaces lateral peers at global banks and fintech firms navigating the same platform modernization and team-scale
-    challenges as Anindya — ideal for mutual knowledge exchange on architectural tradeoffs at regulated-environment scale.
-- segment: SEGMENT 1 — Peer Competitor
-  query: (title:"Head of Cloud Engineering" OR title:"Head of Infrastructure" OR title:"VP of Platform Engineering") AND ("AWS"
-    OR "Terraform" OR "FinOps") AND ("Financial Services" OR "Fintech" OR "Cloud Computing")
-  rationale: Targets cloud and infrastructure heads in financial services who are operating at the same seniority and solving
-    cloud cost governance and infrastructure-at-scale problems — peers worth a genuine peer-framed conversation.
-- segment: SEGMENT 2 — Senior Leader
-  query: (title:"CTO" OR title:"VP of Engineering" OR title:"Chief Technology Officer") AND ("platform engineering" OR "FinOps"
-    OR "Kubernetes") AND ("Fintech" OR "Banking" OR "Investment Bank")
-  rationale: Finds C-suite and VP-level technology leaders in banking and fintech who are 1-2 steps ahead on the CTO path
-    — especially those who have already solved the organizational and architectural challenges Anindya is currently navigating.
-- segment: SEGMENT 2 — Senior Leader
-  query: (title:"EVP Technology" OR title:"MD Technology" OR title:"CIO") AND ("cloud architecture" OR "platform modernization"
-    OR "microservices") AND ("Banking" OR "Financial Services" OR "Capital Markets")
-  rationale: Targets EVP/MD/CIO-level tech leaders in regulated banking and capital markets environments — people who made
-    the transition from engineering leadership to enterprise technology strategy and can offer sponsorship and career trajectory
-    insight.
-- segment: SEGMENT 2 — Senior Leader
-  query: (title:"VP Engineering" OR title:"Head of Engineering" OR title:"CTO") AND ("DevOps" OR "cloud infrastructure" OR
-    "AWS") AND ("Series B" OR "Series C" OR "Startup" OR "Fintech")
-  rationale: Surfaces senior tech leaders at high-growth fintech and cloud infrastructure startups who have scaled engineering
-    organizations from scratch — thought leaders likely to engage with intellectual, peer-framed outreach on platform scaling
-    tradeoffs.
-- segment: SEGMENT 3 — Hiring Decision Maker
-  query: (title:"VP of Engineering" OR title:"Engineering Director" OR title:"Head of Engineering") AND ("platform engineering"
-    OR "Kubernetes" OR "cloud infrastructure") AND ("Goldman Sachs" OR "Morgan Stanley" OR "JP Morgan" OR "Barclays")
-  rationale: Targets senior engineering leaders at tier-1 investment banks who directly influence or own Director/VP/SVP engineering
-    hiring decisions — building warm presence here before opportunities arise is the highest-leverage move at Anindya's seniority.
-- segment: SEGMENT 3 — Hiring Decision Maker
-  query: (title:"CTO" OR title:"VP Engineering" OR title:"Director of Engineering") AND ("AWS" OR "GCP" OR "Azure") AND ("Razorpay"
-    OR "PhonePe" OR "Paytm" OR "Wise" OR "Revolut")
-  rationale: Finds CTO and VP-level hiring decision makers at high-scale fintech product companies in India, UK, and Singapore
-    — organizations actively building platform and cloud capabilities where Anindya's regulated banking and cloud architecture
-    background is a direct fit.
-- segment: SEGMENT 3 — Hiring Decision Maker
-  query: (title:"Technical Talent Partner" OR title:"Engineering Recruiter" OR title:"VP Talent") AND ("platform engineering"
-    OR "cloud" OR "FinOps") AND ("Fintech" OR "Banking" OR "Series B" OR "Series C")
-  rationale: Surfaces senior technical recruiters and talent partners embedded in fintech and banking engineering orgs — these
-    are the bridge contacts who can facilitate warm introductions to hiring managers and flag opportunities before they are
-    publicly posted.
+
+# ── SEGMENT 1 — C-Suite Technology Leaders ───────────────────────────────────
+# Tested: 28 cards (Q1), 30 cards (Q2)
+
+- segment: SEGMENT 1 — C-Suite Technology Leaders
+  query: (title:"CTO" OR title:"Chief Technology Officer" OR title:"Chief Digital Officer") AND ("Banking" OR "Fintech" OR "Investment Bank" OR "Capital Markets")
+  rationale: >
+    Surfaces C-suite technology heads at banks and fintechs. Tested: 28 cards on
+    first page. Simple title + industry keyword — most reliable query pattern.
+
+- segment: SEGMENT 1 — C-Suite Technology Leaders
+  query: (title:"Managing Director" OR title:"MD Technology" OR title:"EVP Technology" OR title:"Group Head") AND ("platform modernization" OR "digital transformation" OR "technology strategy") AND ("Banking" OR "Financial Services" OR "Capital Markets")
+  rationale: >
+    Finds Group Head, MD, and EVP-level technology leaders at major banks.
+    Tested: 30 cards. Two AND groups work here because all keywords are common
+    in senior banking technology profiles.
+
+# ── SEGMENT 2 — Elite MBA + Technology Leadership ────────────────────────────
+# Tested: 27 cards (Q3), 30 cards (Q4-fix)
+# IIT/IIM/ISB/INSEAD appear in education sections — valid keyword signal.
+
+- segment: SEGMENT 2 — Elite MBA and Technology Leadership
+  query: (title:"CTO" OR title:"Chief Technology Officer" OR title:"Head of Engineering" OR title:"Chief Architect") AND ("ISB" OR "Indian School of Business" OR "IIM" OR "IIMA" OR "IIMB" OR "IIMC")
+  rationale: >
+    Finds senior technology leaders who hold ISB or IIM degrees.
+    Tested: 27 cards. LinkedIn indexes education sections in keyword search.
+
+- segment: SEGMENT 2 — Elite MBA and Technology Leadership
+  query: (title:"Managing Director" OR title:"CIO" OR title:"Head of Technology") AND ("ISB" OR "IIM" OR "INSEAD" OR "Harvard Business")
+  rationale: >
+    MD and CIO-level tech leaders with globally ranked MBAs.
+    Tested: 30 cards. Simpler title set (removed rare EVP Technology) —
+    single AND condition only, no extra tech keyword requirement.
+
+# ── SEGMENT 3 — Top Consulting Firm Technology Leaders ───────────────────────
+# Tested: 28 cards (Q5-fix), 28 cards (Q6-fix)
+# Key learning: firm name alone as keyword works. Adding a second AND tech
+# keyword group drops results to zero — LinkedIn drops complex nested booleans.
+
+- segment: SEGMENT 3 — MBB Consulting Technology Leaders
+  query: (title:"Partner" OR title:"Managing Director" OR title:"Director") AND ("McKinsey" OR "BCG" OR "Bain & Company" OR "Boston Consulting")
+  rationale: >
+    Partners and MDs at McKinsey, BCG, Bain. Tested: 28 cards.
+    Firm name as sole keyword works — LinkedIn searches experience + about + headline.
+    A second AND clause (technology keywords) dropped results to zero.
+
+- segment: SEGMENT 3 — Big4 Consulting Technology Leaders
+  query: (title:"Partner" OR title:"Managing Director" OR title:"Director") AND ("Deloitte" OR "Ernst & Young" OR "KPMG" OR "PricewaterhouseCoopers" OR "Accenture")
+  rationale: >
+    Partners and MDs at Deloitte, EY, KPMG, PwC, Accenture. Tested: 28 cards.
+    Full firm names (Ernst & Young not EY, PricewaterhouseCoopers not PwC) match
+    how LinkedIn stores company names in experience sections.
+
+# ── SEGMENT 4 — Thought Leaders and Public Speakers ─────────────────────────
+# Tested: 19 cards (Q7-fix), 28 cards (Q8-fix)
+# "LinkedIn Top Voice" is a platform BADGE — not text in profile — unsearchable.
+# "Speaker" and "Author" DO appear in headlines and about sections.
+# IIT added alongside IIM/ISB: strong signal for India's top tech leaders.
+
+- segment: SEGMENT 4 — Thought Leaders and Public Speakers
+  query: (title:"CTO" OR title:"Chief Technology Officer" OR title:"Managing Director") AND ("Speaker" OR "Author" OR "Advisor") AND ("Banking" OR "Fintech")
+  rationale: >
+    CTOs and MDs who identify as Speakers, Authors, or Advisors in banking/fintech.
+    Tested: 19 cards. "Speaker" and "Author" appear in profile headlines and about
+    sections. High-reach leaders more likely to respond to curious outreach.
+
+- segment: SEGMENT 4 — IIT and IIM Technology Leaders
+  query: (title:"CTO" OR title:"Chief Technology Officer" OR title:"Head of Engineering") AND ("IIT" OR "IIM" OR "ISB") AND ("Fintech" OR "Banking")
+  rationale: >
+    CTOs and Heads of Engineering who are IIT/IIM/ISB alumni in fintech/banking.
+    Tested: 28 cards. IIT adds a high-quality signal beyond just MBA schools —
+    covers India's top engineering graduates in senior tech leadership.
+
+# ── SEGMENT 5 — Tier-1 Investment Banks ──────────────────────────────────────
+# Tested: 29 cards (Q9-fix), 26 cards (Q9-alt)
+# Key learning: bank name alone as keyword works. Adding platform/cloud keywords
+# as a second AND clause drops results to zero for India-specific searches.
+
+- segment: SEGMENT 5 — Tier-1 Investment Bank Technology Leaders
+  query: (title:"Head of Engineering" OR title:"Engineering Director" OR title:"Managing Director") AND ("Goldman Sachs" OR "JP Morgan" OR "Barclays" OR "HSBC" OR "Deutsche Bank")
+  rationale: >
+    Engineering heads and MDs at tier-1 investment banks. Tested: 29 cards.
+    Bank name as sole keyword — adding a second AND clause (platform/cloud)
+    dropped results to zero for India-based searches.

@@ -1,0 +1,122 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# PERSONA — The single input file that drives the entire LinkedIn agent.
+#
+# Fill in YOUR details, then run:
+#   python main.py discover --fresh
+#
+# The agent will automatically:
+#   1. Generate Boolean search queries from this file via Claude
+#   2. Auto-test every query against LinkedIn (keeps only those with results)
+#   3. Discover and scrape top-matching profiles
+#   4. Write personalised messages in your voice for your goal
+#   5. Wait for your approval in Excel before sending anything
+#
+# GOAL options:
+#   PEER_COLLABORATION   — knowledge exchange with people doing similar work
+#   CLIENT_ACQUISITION   — build warm relationships with potential clients
+#   TALENT_ACQUISITION   — connect with candidates you might want to hire
+#   JOB_HUNTING          — explore opportunities without directly asking
+#   INVESTOR_OUTREACH    — connect with investors relevant to your thesis
+#
+# OUTREACH_TONE options:
+#   peer       — intellectual equals exchanging ideas (no hierarchy implied)
+#   consultant — credible advisor who has seen this problem before
+#   job_seeker — curious about their work, not asking for a job explicitly
+#   recruiter  — respectful talent partner who values their time
+# ═══════════════════════════════════════════════════════════════════════════
+
+sender:
+  name: "Anindya Chakraborty"
+  role: "Senior Vice President Technology / Infrastructure Engineering Manager"
+  company: "Nomura India Pvt Ltd"
+  background: >
+    Engineering Director with 20 years in banking tech, cloud, and architecture.
+    Deep expertise in scaling platforms and engineering teams, infrastructure
+    modernisation, and regulated-environment engineering at a global investment bank.
+    Currently leading infrastructure engineering at Nomura India, with hands-on
+    experience in cloud-native migration, platform reliability, and building
+    high-performance engineering organisations under compliance constraints.
+  linkedin_url: "https://www.linkedin.com/in/chakraa1/"
+
+goal: "PEER_COLLABORATION"
+
+goal_description: >
+  Building a warm executive peer network — lateral leaders navigating the same
+  platform modernisation and infrastructure scaling challenges, senior leaders
+  1-2 career steps ahead on the CTO/MD path, and thought leaders in banking tech,
+  consulting, and fintech. The connection message should show genuine intellectual
+  curiosity about the recipient's work, with no hint of job seeking or any
+  transactional agenda.
+
+outreach_tone: "peer"
+
+message_context: >
+  Anindya brings 20 years of hands-on perspective from regulated banking:
+  infrastructure scaling under compliance constraints, cloud-native migration
+  at investment-bank scale, platform reliability engineering, and building
+  engineering teams that ship in a heavily governed environment. Messages should
+  surface a specific tension or non-obvious challenge relevant to the recipient's
+  domain — not general compliments or vague "would love to connect" language.
+  Tone: one senior engineering leader curious about another's hardest problems.
+
+target:
+  description: >
+    Senior technology leaders — CTO, MD Technology, EVP, Head of Engineering,
+    Director of Engineering — in banking, fintech, and technology consulting.
+    Preference for ISB/IIM/IIT alumni, McKinsey/BCG/Deloitte technology leaders,
+    and LinkedIn Top Voice thought leaders in engineering and fintech.
+  roles:
+    - "CTO"
+    - "Chief Technology Officer"
+    - "Managing Director"
+    - "Head of Engineering"
+    - "Director of Engineering"
+    - "VP of Engineering"
+    - "EVP Technology"
+    - "Partner"
+    - "Principal"
+  industries:
+    - "Financial Services"
+    - "Banking"
+    - "Fintech"
+    - "Investment Banking"
+    - "Capital Markets"
+    - "Technology"
+    - "Management Consulting"
+  keywords:
+    - "ISB"
+    - "IIM"
+    - "IIT"
+    - "McKinsey"
+    - "BCG"
+    - "platform engineering"
+    - "cloud architecture"
+    - "digital transformation"
+    - "FinOps"
+  locations:
+    - "India"
+  connection_degree: "2nd"
+  daily_connection_limit: 20
+
+# ── Segment definitions for Boolean search generation ────────────────────────
+# The agent distributes queries across these segments.
+# Rename, add, or remove segments to match your goal.
+segments:
+  - name: "Peer Competitors"
+    description: >
+      Same-level leaders navigating similar challenges. Goal: mutual knowledge
+      exchange — what are peers at similar organisations building?
+    priority: 2
+
+  - name: "Senior Leaders Ahead"
+    description: >
+      Leaders 1-2 career steps ahead who have already solved the problems
+      currently being navigated. Goal: mentorship and career sponsorship.
+    priority: 3
+
+  - name: "Hiring Decision Makers"
+    description: >
+      Engineering directors, VPs, and CTOs at target organisations who
+      influence hiring for senior engineering roles. Goal: warm presence
+      before opportunities arise.
+    priority: 2

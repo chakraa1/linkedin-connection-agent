@@ -53,16 +53,16 @@ Apply your own judgment for qualitative rules.
 Return ONLY a JSON array of issue strings. Empty [] = all rules pass.
 
 ━━━ RULE A: HUMAN_TONE ━━━
-Use the pre-computed average sentence length. Flag if > 15 words per sentence.
+Use the pre-computed average sentence length. Flag if > 12 words per sentence.
 Also check the GPT filler phrases list. Flag any detected phrase.
-FAIL examples: "A: average sentence 19 words — break into shorter sentences"
+FAIL examples: "A: average sentence 16 words — break into shorter sentences"
                "A: GPT filler 'leverage' — replace with plain English"
 
 ━━━ RULE B: WORD_COUNT ━━━
 Use the pre-computed word count. Do NOT count yourself.
-Hard FAIL if > 300 words. FAIL if < 200 words. PASS if 200-300.
-FAIL examples: "B: 312 words — trim by at least 12 words"
-               "B: 178 words — add specific detail to reach 200"
+Hard FAIL if > 150 words. FAIL if < 80 words. PASS if 80-150.
+FAIL examples: "B: 163 words — trim to under 150"
+               "B: 72 words — too short, add one specific detail to reach 80"
 
 ━━━ RULE C: EYE_CATCHING_HOOK ━━━
 The opening 1-2 sentences must be bold, specific, and either counterintuitive or
@@ -121,8 +121,8 @@ Non-hooks (do not count): "technology challenges", "digital transformation", "le
 journey", "exciting work", "impressive experience", "rapidly evolving landscape" — vague,
 generic, applies to anyone.
 
-FAIL if fewer than 3 distinct valid hooks. FAIL if more than 5 (unfocused, scattered).
-FAIL output example: "G: 2 distinct hooks found — need 3 to 5 specific anchors"
+FAIL if fewer than 2 distinct valid hooks. FAIL if more than 3 (too long for a short message).
+FAIL output example: "G: 1 distinct hook found — need at least 2 specific anchors"
 
 ━━━ RULE I: ENGAGEMENT_HOOK ━━━
 Use the pre-computed last-line data. The message must end with a genuine question (?)
@@ -144,7 +144,7 @@ Missing a real failure is worse than flagging a borderline case.
 ━━━ OUTPUT FORMAT ━━━
 Return ONLY a valid JSON array. No prose, no markdown, no explanation outside the array.
 All pass: []
-With failures: ["B: 187 words — below 200 minimum", "C: opening is generic", "I: closes with statement"]\
+With failures: ["B: 163 words — above 150 maximum", "C: opening is generic", "I: closes with statement"]\
 """
 
 
